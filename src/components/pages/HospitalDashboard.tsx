@@ -25,6 +25,8 @@ export const HospitalDashboard: React.FC = () => {
     prescriptions,
     labTests,
     setCurrentPage,
+    currentStaff,
+    openStaffAuth,
     showToast,
   } = useApp();
 
@@ -52,7 +54,7 @@ export const HospitalDashboard: React.FC = () => {
                 Hospital Command & Administration Dashboard
               </h1>
               <span className="text-xs bg-indigo-400/20 text-indigo-300 border border-indigo-400/30 px-2.5 py-0.5 rounded-full font-semibold">
-                Central Operations
+                {currentStaff?.role === "admin" ? currentStaff.name : "Central Operations"}
               </span>
             </div>
             <p className="text-xs sm:text-sm text-indigo-100/90 mt-0.5">
@@ -61,7 +63,16 @@ export const HospitalDashboard: React.FC = () => {
           </div>
         </div>
 
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            id="admin-switch-login-btn"
+            onClick={() => openStaffAuth("admin")}
+            className="px-3 py-2 bg-slate-800/80 hover:bg-slate-700 text-indigo-200 border border-slate-700 text-xs font-semibold rounded-xl transition flex items-center gap-1.5 cursor-pointer"
+          >
+            <Building2 className="w-3.5 h-3.5 text-indigo-400" />
+            <span>{currentStaff?.role === "admin" ? "Switch Admin" : "Admin Sign In"}</span>
+          </button>
+
           <button
             onClick={() => setCurrentPage("department-flow")}
             className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl shadow-sm transition flex items-center gap-2"

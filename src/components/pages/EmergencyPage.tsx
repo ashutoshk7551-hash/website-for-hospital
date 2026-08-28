@@ -14,8 +14,15 @@ import {
 } from "lucide-react";
 
 export const EmergencyPage: React.FC = () => {
-  const { patients, triggerEmergencyAlert, hospitalStats, showToast } = useApp();
-  const currentPatient = patients[0];
+  const {
+    patients,
+    currentPatient,
+    triggerEmergencyAlert,
+    hospitalStats,
+    showToast,
+    openInquiryModal,
+  } = useApp();
+  const activePatient = currentPatient || patients[0];
 
   const [ambulanceDispatched, setAmbulanceDispatched] = useState(false);
   const [eta, setEta] = useState(6);
@@ -70,6 +77,16 @@ export const EmergencyPage: React.FC = () => {
           <span className="text-[10px] font-normal tracking-normal opacity-90">1-Click Hospital Alert</span>
         </button>
 
+        <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
+          <button
+            onClick={() => openInquiryModal("emergency_triage")}
+            className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl border border-slate-700 shadow-md transition flex items-center gap-2 cursor-pointer"
+          >
+            <AlertTriangle className="w-4 h-4 text-amber-400" />
+            <span>Submit Emergency Triage Form to Database</span>
+          </button>
+        </div>
+
         {ambulanceDispatched && (
           <div className="max-w-lg mx-auto p-4 bg-emerald-50 border border-emerald-300 rounded-2xl text-xs text-emerald-900 flex items-center justify-between animate-fade-in">
             <div className="flex items-center gap-2 text-left">
@@ -105,12 +122,12 @@ export const EmergencyPage: React.FC = () => {
           <div className="p-4 bg-red-50 rounded-2xl border border-red-200 space-y-3 text-xs">
             <div className="flex justify-between items-center">
               <div>
-                <div className="text-base font-bold text-slate-900">{currentPatient.name}</div>
-                <div className="text-slate-500">Age: {currentPatient.age} • Gender: {currentPatient.gender}</div>
+                <div className="text-base font-bold text-slate-900">{activePatient.name}</div>
+                <div className="text-slate-500">Age: {activePatient.age} • Gender: {activePatient.gender}</div>
               </div>
               <div className="text-right">
                 <span className="text-[10px] font-bold text-red-700 uppercase">Blood Type</span>
-                <div className="text-xl font-black text-red-600">{currentPatient.bloodGroup}</div>
+                <div className="text-xl font-black text-red-600">{activePatient.bloodGroup}</div>
               </div>
             </div>
 
@@ -119,21 +136,25 @@ export const EmergencyPage: React.FC = () => {
                 <AlertTriangle className="w-3.5 h-3.5 text-red-600" /> Severe Drug Allergies:
               </span>
               <div className="text-red-700 font-semibold bg-white p-2 rounded-lg border border-red-200">
-                {currentPatient.allergies.join(", ")}
+                {activePatient.allergies && activePatient.allergies.length > 0 ? activePatient.allergies.join(", ") : "None reported"}
               </div>
             </div>
 
             <div className="border-t border-red-200 pt-2 space-y-1">
               <span className="font-bold text-slate-900">Pre-Existing Conditions:</span>
-              <div className="text-slate-700">{currentPatient.chronicConditions.join(", ")}</div>
+              <div className="text-slate-700">
+                {activePatient.chronicConditions && activePatient.chronicConditions.length > 0 ? activePatient.chronicConditions.join(", ") : "None recorded"}
+              </div>
             </div>
 
             <div className="border-t border-red-200 pt-2 flex justify-between items-center text-[11px]">
               <div>
                 <span className="font-bold text-slate-900">Emergency Contact: </span>
-                {currentPatient.emergencyContact.name} ({currentPatient.emergencyContact.relationship})
+                {activePatient.emergencyContact ? `${activePatient.emergencyContact.name} (${activePatient.emergencyContact.relationship})` : "Not provided"}
               </div>
-              <span className="font-bold text-red-600">{currentPatient.emergencyContact.phone}</span>
+              <span className="font-bold text-red-600">
+                {activePatient.emergencyContact ? activePatient.emergencyContact.phone : "N/A"}
+              </span>
             </div>
           </div>
         </div>

@@ -18,11 +18,19 @@ import {
   ShieldCheck,
   ChevronRight,
   RefreshCw,
+  MessageSquare,
+  Smartphone,
+  BellRing,
+  Send,
+  CheckCheck,
 } from "lucide-react";
 
 export const PatientPortal: React.FC = () => {
   const {
     patients,
+    currentPatient,
+    currentPatientId,
+    openPatientAuth,
     appointments,
     prescriptions,
     labTests,
@@ -32,20 +40,63 @@ export const PatientPortal: React.FC = () => {
     setAiModalOpen,
     setAiModalInitialType,
     triggerEmergencyAlert,
+    sendAppointmentReminder,
+    setActiveSmsPreview,
+    reminderLogs,
     showToast,
   } = useApp();
 
-  // Active patient in demo
-  const currentPatient = patients[0]; // Eleanor Vance
-  const patientAppointments = appointments.filter((a) => a.patientId === currentPatient.id);
-  const patientPrescriptions = prescriptions.filter((p) => p.patientId === currentPatient.id);
-  const patientLabTests = labTests.filter((l) => l.patientId === currentPatient.id);
+  const activePatient = currentPatient || patients[0];
+
+  const patientAppointments = activePatient
+    ? appointments.filter((a) => a.patientId === activePatient.id)
+    : [];
+
+  const patientReminderLogs = activePatient
+    ? reminderLogs.filter((l) => l.patientId === activePatient.id || l.patientPhone === activePatient.phone)
+    : [];
+  const patientPrescriptions = activePatient
+    ? prescriptions.filter((p) => p.patientId === activePatient.id)
+    : [];
+  const patientLabTests = activePatient
+    ? labTests.filter((l) => l.patientId === activePatient.id)
+    : [];
 
   const [selectedLabTest, setSelectedLabTest] = useState<any | null>(null);
 
   const handleRequestRefill = (medName: string) => {
     showToast(`Refill request for ${medName} submitted to Smart Pharmacy!`);
   };
+
+  if (!activePatient) {
+    return (
+      <div className="max-w-4xl mx-auto px-4 py-16 text-center space-y-6 animate-fade-in">
+        <div className="w-20 h-20 bg-blue-100 text-blue-600 rounded-3xl flex items-center justify-center mx-auto shadow-inner">
+          <User className="w-10 h-10" />
+        </div>
+        <div className="space-y-2">
+          <h2 className="text-2xl font-bold text-slate-900">No Patient Profile Loaded</h2>
+          <p className="text-sm text-slate-600 max-w-md mx-auto">
+            Please register as a new patient to generate your unique Patient ID or sign in to access your electronic health record.
+          </p>
+        </div>
+        <div className="flex flex-wrap justify-center gap-3">
+          <button
+            onClick={() => openPatientAuth("register")}
+            className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm rounded-2xl shadow-md transition"
+          >
+            Register New Patient (Generate ID)
+          </button>
+          <button
+            onClick={() => openPatientAuth("signin")}
+            className="px-6 py-3 bg-slate-200 hover:bg-slate-300 text-slate-800 font-bold text-sm rounded-2xl transition"
+          >
+            Sign In Existing Record
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8 animate-fade-in">
@@ -54,20 +105,28 @@ export const PatientPortal: React.FC = () => {
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 relative z-10">
           <div className="flex items-center gap-4">
             <div className="w-16 h-16 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center text-white text-2xl font-bold border border-white/30 shadow-inner">
-              {currentPatient.name.split(" ").map((n) => n[0]).join("")}
+              {activePatient.name.split(" ").map((n) => n[0]).join("")}
             </div>
             <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-xl sm:text-2xl font-bold tracking-tight">{currentPatient.name}</h1>
-                <span className="text-xs bg-teal-400/20 text-teal-200 border border-teal-400/30 px-2.5 py-0.5 rounded-full font-semibold">
-                  ID: {currentPatient.id}
+              <div className="flex flex-wrap items-center gap-2">
+                <h1 className="text-xl sm:text-2xl font-bold tracking-tight">{activePatient.name}</h1>
+                <span className="text-xs bg-teal-400/20 text-teal-200 border border-teal-400/30 px-2.5 py-0.5 rounded-full font-semibold font-mono">
+                  ID: {activePatient.id}
                 </span>
+                <button
+                  onClick={() => openPatientAuth("signin")}
+                  className="text-[11px] bg-white/10 hover:bg-white/20 text-white px-2 py-0.5 rounded-md border border-white/20 transition flex items-center gap-1"
+                  title="Switch patient or register new ID"
+                >
+                  <RefreshCw className="w-3 h-3" />
+                  <span>Switch / New ID</span>
+                </button>
               </div>
               <p className="text-xs sm:text-sm text-blue-100/90 mt-0.5">
-                {currentPatient.age} yrs • {currentPatient.gender} • Blood Group: <span className="font-bold text-teal-200">{currentPatient.bloodGroup}</span>
+                {activePatient.age} yrs • {activePatient.gender} • Blood Group: <span className="font-bold text-teal-200">{activePatient.bloodGroup}</span>
               </p>
               <div className="flex flex-wrap gap-2 mt-2">
-                {currentPatient.allergies.map((all, i) => (
+                {activePatient.allergies.map((all, i) => (
                   <span
                     key={i}
                     className="text-[11px] bg-red-500/20 text-red-200 border border-red-400/30 px-2 py-0.5 rounded-md font-medium flex items-center gap-1"
@@ -75,7 +134,7 @@ export const PatientPortal: React.FC = () => {
                     <AlertCircle className="w-3 h-3 text-red-300" /> Allergy: {all}
                   </span>
                 ))}
-                {currentPatient.chronicConditions.map((cond, i) => (
+                {activePatient.chronicConditions.map((cond, i) => (
                   <span
                     key={i}
                     className="text-[11px] bg-blue-500/20 text-blue-200 border border-blue-400/30 px-2 py-0.5 rounded-md font-medium"
@@ -119,19 +178,19 @@ export const PatientPortal: React.FC = () => {
         <div className="mt-6 pt-4 border-t border-white/15 grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
           <div className="bg-white/10 p-2.5 rounded-xl">
             <span className="text-blue-200 text-[11px]">Blood Pressure</span>
-            <div className="text-base font-bold text-white mt-0.5">{currentPatient.recentVitals.bloodPressure}</div>
+            <div className="text-base font-bold text-white mt-0.5">{activePatient.recentVitals.bloodPressure}</div>
           </div>
           <div className="bg-white/10 p-2.5 rounded-xl">
             <span className="text-blue-200 text-[11px]">Heart Rate</span>
-            <div className="text-base font-bold text-white mt-0.5">{currentPatient.recentVitals.heartRate} bpm</div>
+            <div className="text-base font-bold text-white mt-0.5">{activePatient.recentVitals.heartRate} bpm</div>
           </div>
           <div className="bg-white/10 p-2.5 rounded-xl">
             <span className="text-blue-200 text-[11px]">Fasting Blood Sugar</span>
-            <div className="text-base font-bold text-white mt-0.5">{currentPatient.recentVitals.bloodSugar} mg/dL</div>
+            <div className="text-base font-bold text-white mt-0.5">{activePatient.recentVitals.bloodSugar} mg/dL</div>
           </div>
           <div className="bg-white/10 p-2.5 rounded-xl">
             <span className="text-blue-200 text-[11px]">Body Weight</span>
-            <div className="text-base font-bold text-white mt-0.5">{currentPatient.recentVitals.weight} kg</div>
+            <div className="text-base font-bold text-white mt-0.5">{activePatient.recentVitals.weight} kg</div>
           </div>
         </div>
       </div>
@@ -164,41 +223,159 @@ export const PatientPortal: React.FC = () => {
               <div className="text-center py-6 text-xs text-slate-400">No scheduled appointments.</div>
             ) : (
               <div className="space-y-3">
-                {patientAppointments.map((apt) => (
+                {patientAppointments.map((apt) => {
+                  const sentLog = patientReminderLogs.find((l) => l.appointmentId === apt.id);
+                  const isSent = apt.reminderSent || !!sentLog;
+
+                  return (
+                    <div
+                      key={apt.id}
+                      className="p-4 rounded-2xl border border-slate-200 bg-slate-50/80 hover:bg-slate-50 transition flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+                    >
+                      <div className="space-y-1.5">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-bold text-slate-900">{apt.doctorName}</span>
+                          <span className="text-[10px] bg-blue-100 text-blue-800 font-semibold px-2 py-0.5 rounded-full">
+                            {apt.department}
+                          </span>
+                          <span className="text-[10px] bg-emerald-100 text-emerald-800 font-semibold px-2 py-0.5 rounded-full capitalize">
+                            {apt.status}
+                          </span>
+                        </div>
+
+                        <div className="text-xs text-slate-600 flex items-center gap-3">
+                          <span className="flex items-center gap-1">
+                            <Calendar className="w-3.5 h-3.5 text-slate-400" /> {apt.date}
+                          </span>
+                          <span className="flex items-center gap-1">
+                            <Clock className="w-3.5 h-3.5 text-slate-400" /> {apt.time}
+                          </span>
+                          <span className="text-blue-700 font-medium">Token: #{apt.tokenNumber}</span>
+                        </div>
+
+                        <div className="text-[11px] text-slate-500 italic">
+                          Reason: {apt.symptoms} • {apt.roomNumber}
+                        </div>
+
+                        {/* Automated Reminder Status Badge */}
+                        <div className="pt-1 flex items-center gap-2">
+                          {isSent ? (
+                            <span className="inline-flex items-center gap-1 text-[10px] bg-teal-100 text-teal-800 font-bold px-2 py-0.5 rounded-md border border-teal-200">
+                              <CheckCheck className="w-3 h-3 text-teal-600" /> 1-Day Reminder Sent (SMS + In-App)
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 text-[10px] bg-amber-100 text-amber-800 font-medium px-2 py-0.5 rounded-md border border-amber-200">
+                              <BellRing className="w-3 h-3 text-amber-600" /> Automated 1-Day Reminder Scheduled
+                            </span>
+                          )}
+
+                          {sentLog?.patientConfirmed && (
+                            <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.5 rounded">
+                              Confirmed by You
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-2">
+                        {isSent && sentLog ? (
+                          <button
+                            onClick={() => setActiveSmsPreview(sentLog)}
+                            className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-white text-xs font-semibold rounded-xl transition flex items-center gap-1"
+                          >
+                            <Smartphone className="w-3.5 h-3.5 text-teal-300" />
+                            <span>View SMS</span>
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => {
+                              const log = sendAppointmentReminder(apt.id, {
+                                triggerType: "instant_preview",
+                              });
+                              if (log) setActiveSmsPreview(log);
+                            }}
+                            className="px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white text-xs font-semibold rounded-xl transition flex items-center gap-1"
+                          >
+                            <Send className="w-3.5 h-3.5" />
+                            <span>Test SMS</span>
+                          </button>
+                        )}
+
+                        <button
+                          onClick={() => showToast(`Appointment confirmed for ${apt.date}. Token #${apt.tokenNumber}`)}
+                          className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-xl transition"
+                        >
+                          Token Pass
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* AUTOMATED SMS REMINDERS & NOTIFICATION HISTORY */}
+          <div className="bg-gradient-to-br from-slate-900 to-slate-800 text-white rounded-3xl p-6 border border-slate-700 shadow-md space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-700 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 bg-teal-500/20 text-teal-300 rounded-xl border border-teal-500/30">
+                  <MessageSquare className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-white flex items-center gap-2">
+                    Automated SMS Reminders & Alerts
+                    <span className="text-[10px] bg-teal-500/20 text-teal-300 px-2 py-0.5 rounded-full border border-teal-500/30 font-mono">
+                      {activePatient.phone}
+                    </span>
+                  </h3>
+                  <p className="text-xs text-slate-300">
+                    Encrypted SMS reminders delivered to your mobile phone 24h before visits.
+                  </p>
+                </div>
+              </div>
+
+              <span className="text-xs font-bold text-teal-400 flex items-center gap-1">
+                <ShieldCheck className="w-4 h-4" /> Active
+              </span>
+            </div>
+
+            {patientReminderLogs.length === 0 ? (
+              <div className="text-center py-6 text-xs text-slate-400 bg-slate-950/40 rounded-2xl border border-slate-800">
+                No reminders sent yet. The system automatically sends text messages 1 day prior to each appointment.
+              </div>
+            ) : (
+              <div className="space-y-2.5">
+                {patientReminderLogs.map((log) => (
                   <div
-                    key={apt.id}
-                    className="p-4 rounded-xl border border-slate-200 bg-slate-50/70 hover:bg-slate-50 transition flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+                    key={log.id}
+                    className="p-3.5 bg-slate-950/70 rounded-2xl border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
                   >
                     <div className="space-y-1">
                       <div className="flex items-center gap-2">
-                        <span className="text-xs font-bold text-slate-900">{apt.doctorName}</span>
-                        <span className="text-[10px] bg-blue-100 text-blue-800 font-semibold px-2 py-0.5 rounded-full">
-                          {apt.department}
-                        </span>
-                        <span className="text-[10px] bg-emerald-100 text-emerald-800 font-semibold px-2 py-0.5 rounded-full capitalize">
-                          {apt.status}
-                        </span>
+                        <span className="text-xs font-bold text-teal-300">PEOPLES-HOSP SMS</span>
+                        <span className="text-[10px] text-slate-400">• {log.sentAt}</span>
                       </div>
-                      <div className="text-xs text-slate-600 flex items-center gap-3">
-                        <span className="flex items-center gap-1">
-                          <Calendar className="w-3.5 h-3.5 text-slate-400" /> {apt.date}
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <Clock className="w-3.5 h-3.5 text-slate-400" /> {apt.time}
-                        </span>
-                        <span className="text-blue-700 font-medium">Token: {apt.tokenNumber}</span>
-                      </div>
-                      <div className="text-[11px] text-slate-500 italic">
-                        Reason: {apt.symptoms} • {apt.roomNumber}
-                      </div>
+                      <p className="text-xs text-slate-200 leading-relaxed max-w-xl">
+                        "{log.smsMessage}"
+                      </p>
                     </div>
 
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 shrink-0">
+                      {log.patientConfirmed ? (
+                        <span className="text-[10px] font-bold text-emerald-400 flex items-center gap-1 bg-emerald-950/50 px-2 py-1 rounded-lg border border-emerald-800/40">
+                          <CheckCheck className="w-3 h-3" /> Confirmed
+                        </span>
+                      ) : (
+                        <span className="text-[10px] font-semibold text-slate-400">Delivered</span>
+                      )}
+
                       <button
-                        onClick={() => showToast(`Appointment confirmed for ${apt.date}. Token #${apt.tokenNumber}`)}
-                        className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-lg transition"
+                        onClick={() => setActiveSmsPreview(log)}
+                        className="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-white text-xs font-semibold rounded-xl border border-slate-700 transition flex items-center gap-1"
                       >
-                        Check-in Pass
+                        <Smartphone className="w-3 h-3 text-teal-300" />
+                        <span>Open Mobile View</span>
                       </button>
                     </div>
                   </div>

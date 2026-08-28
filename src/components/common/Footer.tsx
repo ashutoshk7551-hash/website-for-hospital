@@ -12,7 +12,13 @@ import {
 } from "lucide-react";
 
 export const Footer: React.FC = () => {
-  const { setCurrentPage, setAiModalOpen, triggerEmergencyAlert } = useApp();
+  const {
+    setCurrentPage,
+    setAiModalOpen,
+    triggerEmergencyAlert,
+    setHipaaModalOpen,
+    openInquiryModal,
+  } = useApp();
 
   return (
     <footer className="bg-slate-950 text-slate-300 border-t border-slate-800">
@@ -34,15 +40,22 @@ export const Footer: React.FC = () => {
 
           <div className="flex flex-wrap items-center gap-3">
             <button
+              onClick={() => openInquiryModal("general_inquiry")}
+              className="px-4 py-2.5 bg-gradient-to-r from-teal-500 to-emerald-500 hover:from-teal-400 hover:to-emerald-400 text-white text-xs font-bold rounded-xl shadow-lg transition flex items-center gap-2 cursor-pointer"
+            >
+              <HeartPulse className="w-4 h-4" />
+              <span>Submit Patient Intake / Inquiry</span>
+            </button>
+            <button
               onClick={() => setCurrentPage("competition")}
-              className="px-4 py-2.5 bg-white text-slate-950 hover:bg-slate-100 text-xs font-bold rounded-xl shadow-lg transition flex items-center gap-2"
+              className="px-4 py-2.5 bg-white text-slate-950 hover:bg-slate-100 text-xs font-bold rounded-xl shadow-lg transition flex items-center gap-2 cursor-pointer"
             >
               <Award className="w-4 h-4 text-blue-600" />
               View Innovation Showcase
             </button>
             <button
               onClick={() => setAiModalOpen(true)}
-              className="px-4 py-2.5 bg-teal-600 hover:bg-teal-500 text-white text-xs font-bold rounded-xl shadow-lg transition flex items-center gap-2"
+              className="px-4 py-2.5 bg-teal-600 hover:bg-teal-500 text-white text-xs font-bold rounded-xl shadow-lg transition flex items-center gap-2 cursor-pointer"
             >
               <Sparkles className="w-4 h-4 text-teal-200" />
               AI Clinical Assistant
@@ -85,27 +98,33 @@ export const Footer: React.FC = () => {
             <h4 className="text-xs font-bold text-white uppercase tracking-wider">Stakeholder Portals</h4>
             <ul className="space-y-2 text-xs text-slate-400">
               <li>
-                <button onClick={() => setCurrentPage("patient-portal")} className="hover:text-teal-300 transition">
+                <button onClick={() => setCurrentPage("admin")} className="hover:text-teal-300 transition text-teal-300 font-semibold flex items-center gap-1.5 cursor-pointer">
+                  <Shield className="w-3.5 h-3.5" />
+                  <span>Staff Admin Hub (/admin)</span>
+                </button>
+              </li>
+              <li>
+                <button onClick={() => setCurrentPage("patient-portal")} className="hover:text-teal-300 transition cursor-pointer">
                   Patient Health Dashboard
                 </button>
               </li>
               <li>
-                <button onClick={() => setCurrentPage("doctor-portal")} className="hover:text-teal-300 transition">
+                <button onClick={() => setCurrentPage("doctor-portal")} className="hover:text-teal-300 transition cursor-pointer">
                   Doctor Clinical Station
                 </button>
               </li>
               <li>
-                <button onClick={() => setCurrentPage("pharmacist-portal")} className="hover:text-teal-300 transition">
+                <button onClick={() => setCurrentPage("pharmacist-portal")} className="hover:text-teal-300 transition cursor-pointer">
                   Pharmacist Verification
                 </button>
               </li>
               <li>
-                <button onClick={() => setCurrentPage("hospital-dashboard")} className="hover:text-teal-300 transition">
+                <button onClick={() => setCurrentPage("hospital-dashboard")} className="hover:text-teal-300 transition cursor-pointer">
                   Hospital Admin Analytics
                 </button>
               </li>
               <li>
-                <button onClick={() => setCurrentPage("lab-mgmt")} className="hover:text-teal-300 transition">
+                <button onClick={() => setCurrentPage("lab-mgmt")} className="hover:text-teal-300 transition cursor-pointer">
                   Laboratory Diagnostic Hub
                 </button>
               </li>
@@ -160,8 +179,17 @@ export const Footer: React.FC = () => {
                 </button>
               </li>
               <li>
-                <button onClick={() => setCurrentPage("security-privacy")} className="hover:text-teal-300 transition">
-                  Security & HIPAA Privacy
+                <button
+                  onClick={() => setHipaaModalOpen(true)}
+                  className="hover:text-teal-300 transition text-teal-400 font-semibold flex items-center gap-1 cursor-pointer"
+                >
+                  <Shield className="w-3.5 h-3.5" />
+                  <span>HIPAA Compliance Notice (Modal)</span>
+                </button>
+              </li>
+              <li>
+                <button onClick={() => setCurrentPage("security-privacy")} className="hover:text-teal-300 transition cursor-pointer">
+                  Security Architecture & Audit Logs
                 </button>
               </li>
               <li>

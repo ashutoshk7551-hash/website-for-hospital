@@ -50,10 +50,48 @@ export interface Appointment {
   date: string;
   time: string;
   type: "in-person" | "teleconsultation" | "emergency-followup";
-  status: "confirmed" | "completed" | "cancelled" | "in-progress";
+  status: "confirmed" | "completed" | "cancelled" | "in-progress" | "scheduled";
   symptoms: string;
   tokenNumber: string;
   roomNumber: string;
+  patientPhone?: string;
+  reminderSent?: boolean;
+  reminderSentAt?: string;
+  reminderChannels?: ("sms" | "in-app")[];
+  reminderSmsStatus?: "Delivered" | "Sent" | "Scheduled" | "Pending";
+  reminderMessage?: string;
+}
+
+export interface AppointmentReminderLog {
+  id: string;
+  appointmentId: string;
+  patientId: string;
+  patientName: string;
+  patientPhone: string;
+  doctorName: string;
+  department: string;
+  appointmentDate: string;
+  appointmentTime: string;
+  roomNumber: string;
+  tokenNumber: string;
+  triggerType: "automated_1_day" | "manual_dispatch" | "instant_preview";
+  channels: ("sms" | "in-app")[];
+  smsStatus: "Delivered" | "Sent" | "Pending";
+  smsMessage: string;
+  inAppNotificationId?: string;
+  timestamp: string;
+  sentAt: string;
+  daysUntilAppointment: number;
+  patientConfirmed?: boolean;
+}
+
+export interface ReminderPreferences {
+  automatedSmsEnabled: boolean;
+  automatedInAppEnabled: boolean;
+  reminderWindowDays: number;
+  simulateSmsPopups: boolean;
+  smsSenderId: string;
+  smsTemplate: string;
 }
 
 export interface PrescribedMedicine {
@@ -183,4 +221,17 @@ export interface NotificationItem {
   timestamp: string;
   isRead: boolean;
   targetRole?: UserRole;
+}
+
+export interface StaffMember {
+  id: string;
+  name: string;
+  role: "doctor" | "pharmacist" | "admin" | "lab_tech";
+  department: string;
+  licenseNumber?: string;
+  designation: string;
+  email: string;
+  phone: string;
+  avatar?: string;
+  accessTier?: "Clinical Specialist" | "Lead Pharmacist" | "System Administrator" | "Diagnostic Specialist";
 }

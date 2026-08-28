@@ -27,8 +27,12 @@ export const PharmacistPortal: React.FC = () => {
     setAiModalOpen,
     setAiModalInitialType,
     sendChatMessage,
+    currentStaff,
+    openStaffAuth,
     showToast,
   } = useApp();
+
+  const activePharmacistName = currentStaff?.role === "pharmacist" ? currentStaff.name : "Pharm. Robert Miller, RPh";
 
   const [selectedRxId, setSelectedRxId] = useState<string>(prescriptions[0]?.id || "");
   const selectedRx = prescriptions.find((r) => r.id === selectedRxId) || prescriptions[0];
@@ -85,7 +89,7 @@ export const PharmacistPortal: React.FC = () => {
                 Hospital Pharmacy Informatics Station
               </h1>
               <span className="text-xs bg-emerald-400/20 text-emerald-300 border border-emerald-400/30 px-2.5 py-0.5 rounded-full font-semibold">
-                Pharm. Robert Miller, RPh
+                {activePharmacistName}
               </span>
             </div>
             <p className="text-xs sm:text-sm text-emerald-100/90 mt-0.5">
@@ -101,7 +105,16 @@ export const PharmacistPortal: React.FC = () => {
           </div>
         </div>
 
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            id="pharmacist-switch-login-btn"
+            onClick={() => openStaffAuth("pharmacist")}
+            className="px-3 py-2 bg-slate-800/80 hover:bg-slate-700 text-emerald-200 border border-slate-700 text-xs font-semibold rounded-xl transition flex items-center gap-1.5 cursor-pointer"
+          >
+            <Pill className="w-3.5 h-3.5 text-emerald-400" />
+            <span>{currentStaff?.role === "pharmacist" ? "Switch Pharmacist" : "Pharmacist Sign In"}</span>
+          </button>
+
           <button
             onClick={() => {
               setAiModalInitialType("interaction");

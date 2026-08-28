@@ -30,10 +30,14 @@ export const DoctorPortal: React.FC = () => {
     setAiModalOpen,
     setAiModalInitialType,
     sendChatMessage,
+    currentStaff,
+    openStaffAuth,
     showToast,
   } = useApp();
 
-  const currentDoctor = doctors[0]; // Dr. Sarah Chen
+  // Pick active doctor based on authenticated staff or fallback to first doctor
+  const activeStaffDoctor = currentStaff?.role === "doctor" ? doctors.find((d) => d.name.toLowerCase().includes(currentStaff.name.toLowerCase().split(" ")[1] || "")) : null;
+  const currentDoctor = activeStaffDoctor || doctors[0]; // fallback to Dr. Sarah Chen
   const [selectedPatientId, setSelectedPatientId] = useState<string>(patients[0].id);
   const selectedPatient = patients.find((p) => p.id === selectedPatientId) || patients[0];
 
@@ -129,7 +133,16 @@ export const DoctorPortal: React.FC = () => {
           </div>
         </div>
 
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            id="doctor-switch-login-btn"
+            onClick={() => openStaffAuth("doctor")}
+            className="px-3 py-2 bg-slate-800/80 hover:bg-slate-700 text-teal-200 border border-slate-700 text-xs font-semibold rounded-xl transition flex items-center gap-1.5 cursor-pointer"
+          >
+            <Stethoscope className="w-3.5 h-3.5 text-teal-400" />
+            <span>{currentStaff?.role === "doctor" ? "Switch Doctor" : "Doctor Sign In"}</span>
+          </button>
+
           <button
             onClick={() => {
               setAiModalInitialType("prescription_audit");

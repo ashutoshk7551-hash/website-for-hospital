@@ -21,6 +21,8 @@ import {
   Award,
   AlertTriangle,
   GitBranch,
+  UserPlus,
+  LogIn,
 } from "lucide-react";
 
 export const LandingPage: React.FC = () => {
@@ -28,10 +30,15 @@ export const LandingPage: React.FC = () => {
     setCurrentPage,
     setActiveRole,
     setAiModalOpen,
+    setSearchModalOpen,
     hospitalStats,
     prescriptions,
     medicines,
     appointments,
+    openPatientAuth,
+    openInquiryModal,
+    setHipaaModalOpen,
+    currentPatient,
   } = useApp();
 
   return (
@@ -59,12 +66,52 @@ export const LandingPage: React.FC = () => {
                 An intelligent digital platform connecting patients, doctors, pharmacists, hospitals, laboratories and pharmacies for faster, safer and more patient-centred healthcare.
               </p>
 
+              {/* Instant Hero Search Bar for Services */}
+              <div className="pt-1 max-w-xl mx-auto lg:mx-0">
+                <div
+                  onClick={() => setSearchModalOpen(true)}
+                  className="w-full bg-white hover:bg-slate-50 border-2 border-blue-200 hover:border-blue-400 p-2 sm:p-2.5 rounded-2xl shadow-md shadow-blue-500/10 cursor-pointer flex items-center justify-between gap-3 transition group"
+                >
+                  <div className="flex items-center gap-3 pl-2 min-w-0">
+                    <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                      <Search className="w-5 h-5" />
+                    </div>
+                    <div className="text-left min-w-0">
+                      <div className="text-xs sm:text-sm font-semibold text-slate-800 group-hover:text-blue-600 transition truncate">
+                        Search all hospital services & medicines...
+                      </div>
+                      <div className="text-[11px] text-slate-400 hidden sm:block truncate">
+                        Portals, e-Prescriptions, Appointments, Doctors, Lab Reports
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 pr-1 shrink-0">
+                    <span className="hidden sm:inline text-xs font-semibold text-blue-600 bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-200">
+                      Search
+                    </span>
+                    <kbd className="hidden md:inline-block bg-slate-100 text-[10px] text-slate-500 font-bold px-1.5 py-1 rounded border border-slate-300">
+                      Ctrl+K
+                    </kbd>
+                  </div>
+                </div>
+              </div>
+
               {/* Prominent Action Buttons */}
               <div className="flex flex-wrap items-center justify-center lg:justify-start gap-3 pt-2">
                 <button
+                  id="hero-patient-signup-btn"
+                  onClick={() => openPatientAuth("register")}
+                  className="px-5 py-3 bg-gradient-to-r from-blue-600 to-teal-600 hover:from-blue-700 hover:to-teal-700 text-white text-xs sm:text-sm font-bold rounded-xl shadow-lg shadow-blue-500/25 flex items-center gap-2 transition hover:-translate-y-0.5 cursor-pointer"
+                >
+                  <UserPlus className="w-4 h-4" />
+                  <span>New Patient Sign In (Get ID)</span>
+                </button>
+
+                <button
                   id="hero-book-apt-btn"
                   onClick={() => setCurrentPage("appointments")}
-                  className="px-5 py-3 bg-blue-600 hover:bg-blue-700 text-white text-xs sm:text-sm font-semibold rounded-xl shadow-lg shadow-blue-500/25 flex items-center gap-2 transition hover:-translate-y-0.5"
+                  className="px-5 py-3 bg-blue-600 hover:bg-blue-700 text-white text-xs sm:text-sm font-semibold rounded-xl shadow-lg shadow-blue-500/25 flex items-center gap-2 transition hover:-translate-y-0.5 cursor-pointer"
                 >
                   <Calendar className="w-4 h-4" />
                   Book Doctor Appointment
@@ -73,31 +120,40 @@ export const LandingPage: React.FC = () => {
                 <button
                   id="hero-consult-pharm-btn"
                   onClick={() => setCurrentPage("doctor-pharmacist-connect")}
-                  className="px-5 py-3 bg-teal-600 hover:bg-teal-700 text-white text-xs sm:text-sm font-semibold rounded-xl shadow-lg shadow-teal-500/25 flex items-center gap-2 transition hover:-translate-y-0.5"
+                  className="px-4 py-3 bg-teal-600 hover:bg-teal-700 text-white text-xs sm:text-sm font-semibold rounded-xl shadow-lg shadow-teal-500/25 flex items-center gap-2 transition hover:-translate-y-0.5 cursor-pointer"
                 >
                   <Pill className="w-4 h-4" />
                   Consult Pharmacist
                 </button>
 
                 <button
-                  id="hero-find-pharm-btn"
-                  onClick={() => setCurrentPage("medicine-search")}
-                  className="px-4 py-3 bg-white hover:bg-slate-50 text-slate-800 border border-slate-300 text-xs sm:text-sm font-semibold rounded-xl shadow-xs flex items-center gap-2 transition"
+                  id="hero-intake-btn"
+                  onClick={() => openInquiryModal("patient_intake")}
+                  className="px-4 py-3 bg-gradient-to-r from-teal-700 to-emerald-600 hover:from-teal-800 hover:to-emerald-700 text-white text-xs sm:text-sm font-bold rounded-xl shadow-lg shadow-teal-500/20 flex items-center gap-2 transition hover:-translate-y-0.5 cursor-pointer"
                 >
-                  <Search className="w-4 h-4 text-slate-500" />
-                  Find Pharmacy / Medicine
+                  <HeartPulse className="w-4 h-4 text-teal-200" />
+                  <span>Submit Patient Intake</span>
+                </button>
+
+                <button
+                  id="hero-admin-btn"
+                  onClick={() => {
+                    setActiveRole("admin");
+                    setCurrentPage("admin");
+                  }}
+                  className="px-4 py-3 bg-indigo-900 hover:bg-indigo-850 text-indigo-100 text-xs sm:text-sm font-semibold rounded-xl border border-indigo-750 shadow-xs flex items-center gap-2 transition cursor-pointer"
+                >
+                  <Building2 className="w-4 h-4 text-indigo-300" />
+                  <span>Staff Admin (/admin)</span>
                 </button>
 
                 <button
                   id="hero-patient-login-btn"
-                  onClick={() => {
-                    setActiveRole("patient");
-                    setCurrentPage("patient-portal");
-                  }}
-                  className="px-4 py-3 bg-slate-900 hover:bg-slate-800 text-white text-xs sm:text-sm font-semibold rounded-xl shadow-xs flex items-center gap-2 transition"
+                  onClick={() => openPatientAuth("signin")}
+                  className="px-4 py-3 bg-slate-900 hover:bg-slate-800 text-white text-xs sm:text-sm font-semibold rounded-xl shadow-xs flex items-center gap-2 transition cursor-pointer"
                 >
-                  <User className="w-4 h-4 text-teal-400" />
-                  Patient Login
+                  <LogIn className="w-4 h-4 text-teal-400" />
+                  <span>Patient Login</span>
                 </button>
               </div>
 
@@ -464,6 +520,7 @@ export const LandingPage: React.FC = () => {
 
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
           {[
+            { id: "admin", label: "Staff Admin Portal", icon: Building2, desc: "Inquiry & Intake /admin", role: "admin" },
             { id: "patient-portal", label: "Patient Portal", icon: User, desc: "Personal Health Hub", role: "patient" },
             { id: "doctor-portal", label: "Doctor Portal", icon: Stethoscope, desc: "Clinical Station", role: "doctor" },
             { id: "pharmacist-portal", label: "Pharmacist Portal", icon: Pill, desc: "Rx Verification", role: "pharmacist" },

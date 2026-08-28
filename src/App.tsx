@@ -8,6 +8,10 @@ import { AppProvider, useApp, PageId } from "./context/AppContext";
 import { Header } from "./components/common/Header";
 import { Footer } from "./components/common/Footer";
 import { AiSupportModal } from "./components/common/AiSupportModal";
+import { GlobalSearchModal } from "./components/common/GlobalSearchModal";
+import { PatientAuthModal } from "./components/common/PatientAuthModal";
+import { StaffAuthModal } from "./components/common/StaffAuthModal";
+import { SmsDeviceModal } from "./components/common/SmsDeviceModal";
 import { LandingPage } from "./components/pages/LandingPage";
 import { PatientPortal } from "./components/pages/PatientPortal";
 import { DoctorPortal } from "./components/pages/DoctorPortal";
@@ -25,10 +29,21 @@ import { EmergencyPage } from "./components/pages/EmergencyPage";
 import { SecurityPrivacyPage } from "./components/pages/SecurityPrivacyPage";
 import { CompetitionSection } from "./components/pages/CompetitionSection";
 import { DepartmentFlowPage } from "./components/pages/DepartmentFlowPage";
+import { AdminPortal } from "./components/admin/AdminPortal";
+import { HipaaComplianceModal } from "./components/common/HipaaComplianceModal";
+import { PatientInquiryModal } from "./components/common/PatientInquiryModal";
 import { CheckCircle, AlertTriangle } from "lucide-react";
 
 const MainContent: React.FC = () => {
-  const { currentPage, toastMessage } = useApp();
+  const {
+    currentPage,
+    toastMessage,
+    hipaaModalOpen,
+    setHipaaModalOpen,
+    inquiryModalOpen,
+    setInquiryModalOpen,
+    inquiryModalType,
+  } = useApp();
 
   const renderPage = () => {
     switch (currentPage) {
@@ -44,6 +59,8 @@ const MainContent: React.FC = () => {
         return <PharmacistPortal />;
       case "hospital-dashboard":
         return <HospitalDashboard />;
+      case "admin":
+        return <AdminPortal />;
       case "pharmacy-mgmt":
         return <PharmacyManagement />;
       case "lab-mgmt":
@@ -85,6 +102,31 @@ const MainContent: React.FC = () => {
 
       {/* Global Clinical AI Decision Support Modal */}
       <AiSupportModal />
+
+      {/* Global Quick Search & Service Discovery Modal */}
+      <GlobalSearchModal />
+
+      {/* Global Patient Sign In & Registration Modal */}
+      <PatientAuthModal />
+
+      {/* Global Doctor, Pharmacist, Admin, Lab Staff Sign In Modal */}
+      <StaffAuthModal />
+
+      {/* Global Interactive SMS Mobile Device Simulation Modal */}
+      <SmsDeviceModal />
+
+      {/* Global HIPAA / Data Privacy Compliance Modal */}
+      <HipaaComplianceModal
+        isOpen={hipaaModalOpen}
+        onClose={() => setHipaaModalOpen(false)}
+      />
+
+      {/* Global Patient Intake & Inquiry Submission Modal */}
+      <PatientInquiryModal
+        isOpen={inquiryModalOpen}
+        onClose={() => setInquiryModalOpen(false)}
+        initialType={inquiryModalType}
+      />
 
       {/* Global Interactive Toast Notification */}
       {toastMessage && (

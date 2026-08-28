@@ -24,6 +24,11 @@ import {
   Award,
   ChevronDown,
   Info,
+  UserPlus,
+  LogIn,
+  LogOut,
+  HeartPulse,
+  RefreshCw,
 } from "lucide-react";
 
 export const Header: React.FC = () => {
@@ -36,13 +41,24 @@ export const Header: React.FC = () => {
     markNotificationRead,
     clearAllNotifications,
     setAiModalOpen,
+    setSearchModalOpen,
     triggerEmergencyAlert,
+    currentPatient,
+    currentPatientId,
+    openPatientAuth,
+    logoutPatient,
+    currentStaff,
+    currentStaffId,
+    openStaffAuth,
+    logoutStaff,
   } = useApp();
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [notifDropdownOpen, setNotifDropdownOpen] = useState(false);
   const [portalsDropdownOpen, setPortalsDropdownOpen] = useState(false);
   const [toolsDropdownOpen, setToolsDropdownOpen] = useState(false);
+  const [patientMenuOpen, setPatientMenuOpen] = useState(false);
+  const [staffMenuOpen, setStaffMenuOpen] = useState(false);
 
   const unreadCount = notifications.filter((n) => !n.isRead).length;
 
@@ -103,7 +119,41 @@ export const Header: React.FC = () => {
         </div>
 
         {/* Top Right Utilities */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-2.5">
+          {/* Staff Sign In Trigger */}
+          <button
+            id="staff-auth-top-btn"
+            onClick={() => openStaffAuth(activeRole === "patient" ? "doctor" : activeRole)}
+            className="flex items-center gap-1.5 bg-gradient-to-r from-slate-800 to-slate-750 hover:from-slate-700 hover:to-slate-650 text-teal-300 hover:text-white px-2.5 py-1 rounded-md text-xs font-semibold border border-slate-750 transition cursor-pointer shadow-2xs"
+            title="Doctor, Pharmacist, Hospital Admin, and Lab Technician Sign In"
+          >
+            <ShieldCheck className="w-3.5 h-3.5 text-teal-400" />
+            <span className="hidden sm:inline">Doctor & Staff Sign In</span>
+            <span className="sm:hidden">Staff</span>
+          </button>
+
+          {/* Patient Sign In Trigger */}
+          <button
+            id="patient-auth-top-btn"
+            onClick={() => openPatientAuth("register")}
+            className="flex items-center gap-1.5 bg-gradient-to-r from-teal-700 to-teal-600 hover:from-teal-600 hover:to-teal-500 text-white px-2.5 py-1 rounded-md text-xs font-semibold shadow-xs transition cursor-pointer"
+            title="Register new patient or sign in to get your official Patient ID"
+          >
+            <UserPlus className="w-3.5 h-3.5 text-teal-200" />
+            <span className="hidden sm:inline">Patient Sign In / ID</span>
+            <span className="sm:hidden">Patient</span>
+          </button>
+
+          <button
+            id="search-top-btn"
+            onClick={() => setSearchModalOpen(true)}
+            className="flex items-center gap-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white px-2.5 py-1 rounded-md text-xs font-semibold border border-slate-700 transition"
+          >
+            <Search className="w-3.5 h-3.5 text-blue-400" />
+            <span className="hidden sm:inline">Search Services</span>
+            <span className="sm:hidden">Search</span>
+          </button>
+
           <button
             id="emergency-top-btn"
             onClick={() => {
@@ -250,14 +300,31 @@ export const Header: React.FC = () => {
                   <button
                     onClick={() => {
                       setActiveRole("admin");
+                      setCurrentPage("admin");
+                      setPortalsDropdownOpen(false);
+                    }}
+                    className="w-full text-left px-3 py-2 text-xs hover:bg-slate-50 flex items-center gap-2 text-slate-700 bg-indigo-50/40"
+                  >
+                    <Building2 className="w-4 h-4 text-indigo-600" />
+                    <div>
+                      <div className="font-semibold text-indigo-950 flex items-center gap-1.5">
+                        <span>Staff Admin Portal</span>
+                        <span className="text-[9px] bg-indigo-600 text-white font-mono px-1 rounded">/admin</span>
+                      </div>
+                      <div className="text-[10px] text-slate-500">Triage Inquiries, Intake & Escalation</div>
+                    </div>
+                  </button>
+                  <button
+                    onClick={() => {
+                      setActiveRole("admin");
                       setCurrentPage("hospital-dashboard");
                       setPortalsDropdownOpen(false);
                     }}
                     className="w-full text-left px-3 py-2 text-xs hover:bg-slate-50 flex items-center gap-2 text-slate-700"
                   >
-                    <Building2 className="w-4 h-4 text-indigo-600" />
+                    <BarChart3 className="w-4 h-4 text-slate-600" />
                     <div>
-                      <div className="font-semibold">Hospital Administrator</div>
+                      <div className="font-semibold">Hospital Analytics Dashboard</div>
                       <div className="text-[10px] text-slate-400">Beds, Staff, OPD/IPD Operations</div>
                     </div>
                   </button>
@@ -385,8 +452,32 @@ export const Header: React.FC = () => {
             </div>
           </nav>
 
-          {/* Right Action Icons: Notifications & Role Badge */}
-          <div className="flex items-center gap-3">
+          {/* Right Action Icons: Search, Notifications & Role Badge */}
+          <div className="flex items-center gap-2 sm:gap-3">
+            {/* Desktop Quick Search Trigger */}
+            <button
+              id="header-global-search-btn"
+              onClick={() => setSearchModalOpen(true)}
+              className="hidden md:flex items-center gap-2 bg-slate-100/90 hover:bg-slate-200/90 border border-slate-200 text-slate-600 hover:text-slate-900 px-3 py-1.5 rounded-xl text-xs font-medium transition shadow-2xs group cursor-pointer"
+              title="Quick Search Services, Doctors, Medicines (Ctrl+K)"
+            >
+              <Search className="w-3.5 h-3.5 text-blue-600 group-hover:scale-110 transition-transform" />
+              <span className="font-medium text-slate-700">Search services...</span>
+              <kbd className="hidden lg:inline-flex items-center bg-white text-[10px] text-slate-500 font-bold px-1.5 py-0.5 rounded border border-slate-300 shadow-2xs">
+                ⌘K
+              </kbd>
+            </button>
+
+            {/* Mobile Search Icon Button */}
+            <button
+              id="mobile-search-icon-btn"
+              onClick={() => setSearchModalOpen(true)}
+              className="md:hidden p-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-xl relative transition"
+              title="Search Services"
+            >
+              <Search className="w-5 h-5 text-blue-600" />
+            </button>
+
             {/* Notification Bell */}
             <div className="relative">
               <button
@@ -448,6 +539,255 @@ export const Header: React.FC = () => {
               )}
             </div>
 
+            {/* Staff & Doctor Authentication Dropdown / Action */}
+            <div className="relative">
+              {currentStaff && activeRole !== "patient" ? (
+                <div>
+                  <button
+                    id="staff-profile-header-btn"
+                    onClick={() => setStaffMenuOpen(!staffMenuOpen)}
+                    className="flex items-center gap-2 bg-slate-900 hover:bg-slate-800 text-white px-3 py-1.5 rounded-xl text-xs font-medium transition cursor-pointer shadow-xs border border-slate-700"
+                    title={`Staff: ${currentStaff.name} (${currentStaff.designation})`}
+                  >
+                    <img
+                      src={currentStaff.avatar}
+                      alt={currentStaff.name}
+                      className="w-6 h-6 rounded-lg object-cover border border-slate-600"
+                      referrerPolicy="no-referrer"
+                    />
+                    <div className="text-left hidden xl:block">
+                      <div className="text-xs font-bold leading-tight truncate max-w-[120px]">
+                        {currentStaff.name.split(",")[0]}
+                      </div>
+                      <div className="text-[10px] text-teal-400 font-mono leading-tight">
+                        {currentStaff.id}
+                      </div>
+                    </div>
+                    <ChevronDown className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                  </button>
+
+                  {/* Staff Profile Popover Menu */}
+                  {staffMenuOpen && (
+                    <div className="absolute right-0 mt-2 w-80 bg-white rounded-2xl shadow-2xl border border-slate-200 py-3 z-50 animate-fade-in text-slate-800">
+                      <div className="px-4 pb-3 border-b border-slate-100">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] uppercase font-bold text-teal-700 tracking-wider bg-teal-50 px-2 py-0.5 rounded border border-teal-200">
+                            {currentStaff.role.toUpperCase().replace("_", " ")} TERMINAL
+                          </span>
+                          <span className="text-[10px] font-mono text-slate-400">
+                            {currentStaff.id}
+                          </span>
+                        </div>
+                        <div className="text-sm font-bold text-slate-900 mt-2">
+                          {currentStaff.name}
+                        </div>
+                        <p className="text-xs text-slate-500 mt-0.5">{currentStaff.designation}</p>
+                        {currentStaff.licenseNumber && (
+                          <div className="text-[11px] font-mono text-slate-600 mt-1 bg-slate-50 px-2 py-1 rounded-md border border-slate-200">
+                            License: {currentStaff.licenseNumber}
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="p-2 space-y-1">
+                        <button
+                          id="staff-menu-open-workspace"
+                          onClick={() => {
+                            const pageMap: Record<UserRole, PageId> = {
+                              doctor: "doctor-portal",
+                              pharmacist: "pharmacist-portal",
+                              admin: "admin",
+                              lab_tech: "lab-mgmt",
+                              patient: "patient-portal",
+                            };
+                            setCurrentPage(pageMap[currentStaff.role]);
+                            setActiveRole(currentStaff.role);
+                            setStaffMenuOpen(false);
+                          }}
+                          className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-teal-800 bg-teal-50 hover:bg-teal-100 rounded-xl transition text-left cursor-pointer font-bold"
+                        >
+                          <Activity className="w-4 h-4 text-teal-600" />
+                          <span>Open Active Staff Workspace</span>
+                        </button>
+
+                        <button
+                          id="staff-menu-open-admin-hub"
+                          onClick={() => {
+                            setCurrentPage("admin");
+                            setActiveRole("admin");
+                            setStaffMenuOpen(false);
+                          }}
+                          className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-indigo-800 bg-indigo-50/70 hover:bg-indigo-100 rounded-xl transition text-left cursor-pointer font-semibold"
+                        >
+                          <Building2 className="w-4 h-4 text-indigo-600" />
+                          <span>Staff Admin Portal (/admin)</span>
+                        </button>
+
+                        <button
+                          id="staff-menu-switch-account"
+                          onClick={() => {
+                            openStaffAuth(currentStaff.role);
+                            setStaffMenuOpen(false);
+                          }}
+                          className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-slate-700 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition text-left cursor-pointer"
+                        >
+                          <RefreshCw className="w-4 h-4 text-slate-500" />
+                          <span>Switch Staff Account / Role</span>
+                        </button>
+
+                        <div className="pt-1 border-t border-slate-100">
+                          <button
+                            id="staff-menu-logout"
+                            onClick={() => {
+                              logoutStaff();
+                              setStaffMenuOpen(false);
+                            }}
+                            className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-red-600 hover:bg-red-50 rounded-xl transition text-left cursor-pointer"
+                          >
+                            <LogOut className="w-4 h-4 text-red-500" />
+                            <span>Sign Out of Staff Terminal</span>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <button
+                  id="header-staff-sign-in-btn"
+                  onClick={() => openStaffAuth("doctor")}
+                  className="hidden md:flex items-center gap-1.5 bg-slate-900 hover:bg-slate-800 text-teal-300 hover:text-white px-3 py-1.5 rounded-xl text-xs font-bold shadow-xs transition cursor-pointer border border-slate-800"
+                  title="Doctor, Pharmacist, Admin, and Lab Technician Sign In"
+                >
+                  <ShieldCheck className="w-3.5 h-3.5 text-teal-400" />
+                  <span>Staff Sign In</span>
+                </button>
+              )}
+            </div>
+
+            {/* Patient Account & Registration Dropdown / Action */}
+            <div className="relative">
+              {currentPatient ? (
+                <div>
+                  <button
+                    id="patient-profile-header-btn"
+                    onClick={() => setPatientMenuOpen(!patientMenuOpen)}
+                    className="flex items-center gap-2 bg-teal-50/90 hover:bg-teal-100/90 border border-teal-200 text-teal-950 px-3 py-1.5 rounded-xl text-xs font-medium transition cursor-pointer"
+                    title={`Patient: ${currentPatient.name} (${currentPatient.id})`}
+                  >
+                    <div className="w-6 h-6 rounded-lg bg-teal-600 text-white font-bold flex items-center justify-center text-[10px]">
+                      {currentPatient.name.split(" ").map((n) => n[0]).join("")}
+                    </div>
+                    <div className="text-left hidden xl:block">
+                      <div className="text-xs font-bold leading-tight truncate max-w-[110px]">
+                        {currentPatient.name}
+                      </div>
+                      <div className="text-[10px] text-teal-700 font-mono leading-tight">
+                        {currentPatient.id}
+                      </div>
+                    </div>
+                    <ChevronDown className="w-3.5 h-3.5 text-teal-700 shrink-0" />
+                  </button>
+
+                  {/* Patient Profile Menu Popover */}
+                  {patientMenuOpen && (
+                    <div className="absolute right-0 mt-2 w-72 bg-white rounded-2xl shadow-2xl border border-slate-200 py-3 z-50 animate-fade-in text-slate-800">
+                      <div className="px-4 pb-3 border-b border-slate-100">
+                        <div className="text-[10px] uppercase font-bold text-teal-600 tracking-wider">
+                          Active Patient Record
+                        </div>
+                        <div className="text-sm font-bold text-slate-900 mt-0.5">
+                          {currentPatient.name}
+                        </div>
+                        <div className="flex items-center gap-2 mt-1">
+                          <span className="text-xs font-mono font-bold bg-teal-50 text-teal-700 px-2 py-0.5 rounded-md border border-teal-200">
+                            {currentPatient.id}
+                          </span>
+                          <span className="text-[11px] text-slate-500">
+                            {currentPatient.bloodGroup} • {currentPatient.age}y
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="p-2 space-y-1">
+                        <button
+                          id="patient-menu-view-portal"
+                          onClick={() => {
+                            setActiveRole("patient");
+                            setCurrentPage("patient-portal");
+                            setPatientMenuOpen(false);
+                          }}
+                          className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-slate-700 hover:text-blue-700 hover:bg-blue-50 rounded-xl transition text-left cursor-pointer"
+                        >
+                          <HeartPulse className="w-4 h-4 text-blue-600" />
+                          <span>Check Health Status & Records</span>
+                        </button>
+
+                        <button
+                          id="patient-menu-book-apt"
+                          onClick={() => {
+                            setCurrentPage("appointments");
+                            setPatientMenuOpen(false);
+                          }}
+                          className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-slate-700 hover:text-blue-700 hover:bg-blue-50 rounded-xl transition text-left cursor-pointer"
+                        >
+                          <Calendar className="w-4 h-4 text-blue-600" />
+                          <span>Book Doctor Appointment</span>
+                        </button>
+
+                        <button
+                          id="patient-menu-register-new"
+                          onClick={() => {
+                            openPatientAuth("register");
+                            setPatientMenuOpen(false);
+                          }}
+                          className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-slate-700 hover:text-teal-700 hover:bg-teal-50 rounded-xl transition text-left cursor-pointer"
+                        >
+                          <UserPlus className="w-4 h-4 text-teal-600" />
+                          <span>Register New Patient (Get ID)</span>
+                        </button>
+
+                        <button
+                          id="patient-menu-switch"
+                          onClick={() => {
+                            openPatientAuth("signin");
+                            setPatientMenuOpen(false);
+                          }}
+                          className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-slate-700 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition text-left cursor-pointer"
+                        >
+                          <RefreshCw className="w-4 h-4 text-slate-500" />
+                          <span>Switch Patient Account</span>
+                        </button>
+
+                        <div className="pt-1 border-t border-slate-100">
+                          <button
+                            id="patient-menu-logout"
+                            onClick={() => {
+                              logoutPatient();
+                              setPatientMenuOpen(false);
+                            }}
+                            className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-red-600 hover:bg-red-50 rounded-xl transition text-left cursor-pointer"
+                          >
+                            <LogOut className="w-4 h-4 text-red-500" />
+                            <span>Sign Out Profile</span>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <button
+                  id="header-sign-in-btn"
+                  onClick={() => openPatientAuth("register")}
+                  className="flex items-center gap-1.5 bg-gradient-to-r from-blue-600 to-teal-600 hover:from-blue-700 hover:to-teal-700 text-white px-3.5 py-1.5 rounded-xl text-xs font-bold shadow-md shadow-blue-500/20 transition cursor-pointer"
+                >
+                  <UserPlus className="w-3.5 h-3.5" />
+                  <span>Patient Sign In</span>
+                </button>
+              )}
+            </div>
+
             {/* Current Active Workspace Indicator Pill */}
             <div
               onClick={() => {
@@ -485,8 +825,77 @@ export const Header: React.FC = () => {
 
       {/* Mobile Navigation Drawer */}
       {mobileMenuOpen && (
-        <div className="lg:hidden bg-white border-b border-slate-200 px-4 pt-2 pb-6 space-y-3 animate-fade-in">
-          <div className="text-xs font-bold text-slate-400 uppercase tracking-wider">Navigation</div>
+        <div className="lg:hidden bg-white border-b border-slate-200 px-4 pt-3 pb-6 space-y-4 animate-fade-in">
+          {/* Quick Search Bar in Mobile Drawer */}
+          <button
+            id="mobile-drawer-search-btn"
+            onClick={() => {
+              setSearchModalOpen(true);
+              setMobileMenuOpen(false);
+            }}
+            className="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 p-2.5 rounded-xl text-xs font-semibold flex items-center justify-between border border-slate-200 transition"
+          >
+            <div className="flex items-center gap-2">
+              <Search className="w-4 h-4 text-blue-600" />
+              <span>Search services, doctors, medicines...</span>
+            </div>
+            <span className="text-[10px] bg-white px-2 py-0.5 rounded border border-slate-300 text-slate-500 font-bold">
+              Tap to search
+            </span>
+          </button>
+
+          <div className="text-xs font-bold text-slate-400 uppercase tracking-wider pt-2">Patient Account & ID</div>
+          <div className="bg-slate-50 p-3 rounded-2xl border border-slate-200 space-y-2.5">
+            {currentPatient ? (
+              <div className="flex items-center justify-between gap-2 pb-2 border-b border-slate-200">
+                <div className="min-w-0">
+                  <div className="text-xs font-bold text-slate-900 truncate">
+                    {currentPatient.name}
+                  </div>
+                  <div className="text-[10px] text-teal-700 font-mono">
+                    ID: {currentPatient.id} • {currentPatient.bloodGroup}
+                  </div>
+                </div>
+                <button
+                  onClick={() => {
+                    logoutPatient();
+                    setMobileMenuOpen(false);
+                  }}
+                  className="text-[11px] text-red-600 font-semibold hover:underline"
+                >
+                  Sign Out
+                </button>
+              </div>
+            ) : null}
+
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                id="mobile-register-patient-btn"
+                onClick={() => {
+                  openPatientAuth("register");
+                  setMobileMenuOpen(false);
+                }}
+                className="py-2 px-3 bg-gradient-to-r from-blue-600 to-teal-600 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-xs"
+              >
+                <UserPlus className="w-3.5 h-3.5" />
+                <span>New Patient ID</span>
+              </button>
+
+              <button
+                id="mobile-login-patient-btn"
+                onClick={() => {
+                  openPatientAuth("signin");
+                  setMobileMenuOpen(false);
+                }}
+                className="py-2 px-3 bg-white hover:bg-slate-100 text-slate-700 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 border border-slate-300"
+              >
+                <LogIn className="w-3.5 h-3.5" />
+                <span>Switch / Sign In</span>
+              </button>
+            </div>
+          </div>
+
+          <div className="text-xs font-bold text-slate-400 uppercase tracking-wider pt-2">Navigation</div>
           <div className="grid grid-cols-2 gap-2">
             {navLinks.map((link) => {
               const Icon = link.icon;
@@ -508,8 +917,111 @@ export const Header: React.FC = () => {
             })}
           </div>
 
+          {/* Mobile Staff & Clinical Authentication Section */}
+          <div className="text-xs font-bold text-slate-400 uppercase tracking-wider pt-2">
+            Doctor, Pharmacist & Admin Sign In
+          </div>
+          <div className="bg-slate-900 text-white p-3.5 rounded-2xl border border-slate-800 space-y-3">
+            {currentStaff ? (
+              <div className="flex items-center justify-between gap-2 pb-2.5 border-b border-slate-800">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <img
+                    src={currentStaff.avatar}
+                    alt={currentStaff.name}
+                    className="w-8 h-8 rounded-lg object-cover border border-slate-700 shrink-0"
+                    referrerPolicy="no-referrer"
+                  />
+                  <div className="min-w-0">
+                    <div className="text-xs font-bold text-white truncate">
+                      {currentStaff.name}
+                    </div>
+                    <div className="text-[10px] text-teal-400 font-mono">
+                      {currentStaff.designation} • ID: {currentStaff.id}
+                    </div>
+                  </div>
+                </div>
+                <button
+                  onClick={() => {
+                    logoutStaff();
+                    setMobileMenuOpen(false);
+                  }}
+                  className="text-[11px] text-red-400 font-semibold hover:underline shrink-0"
+                >
+                  Log Out
+                </button>
+              </div>
+            ) : (
+              <div className="text-xs text-slate-300">
+                Sign in with your official staff credentials, medical license number, or employee ID.
+              </div>
+            )}
+
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                id="mobile-doctor-login-btn"
+                onClick={() => {
+                  openStaffAuth("doctor");
+                  setMobileMenuOpen(false);
+                }}
+                className="py-2 px-2.5 bg-teal-600/30 hover:bg-teal-600 text-teal-200 hover:text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 border border-teal-500/40 transition"
+              >
+                <Stethoscope className="w-3.5 h-3.5 text-teal-400" />
+                <span>Doctor Sign In</span>
+              </button>
+
+              <button
+                id="mobile-pharmacist-login-btn"
+                onClick={() => {
+                  openStaffAuth("pharmacist");
+                  setMobileMenuOpen(false);
+                }}
+                className="py-2 px-2.5 bg-emerald-600/30 hover:bg-emerald-600 text-emerald-200 hover:text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 border border-emerald-500/40 transition"
+              >
+                <Pill className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Pharmacist Sign In</span>
+              </button>
+
+              <button
+                id="mobile-admin-login-btn"
+                onClick={() => {
+                  openStaffAuth("admin");
+                  setMobileMenuOpen(false);
+                }}
+                className="py-2 px-2.5 bg-indigo-600/30 hover:bg-indigo-600 text-indigo-200 hover:text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 border border-indigo-500/40 transition"
+              >
+                <Building2 className="w-3.5 h-3.5 text-indigo-400" />
+                <span>Admin Sign In</span>
+              </button>
+
+              <button
+                id="mobile-lab-login-btn"
+                onClick={() => {
+                  openStaffAuth("lab_tech");
+                  setMobileMenuOpen(false);
+                }}
+                className="py-2 px-2.5 bg-purple-600/30 hover:bg-purple-600 text-purple-200 hover:text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 border border-purple-500/40 transition"
+              >
+                <TestTube2 className="w-3.5 h-3.5 text-purple-400" />
+                <span>Lab Tech Sign In</span>
+              </button>
+            </div>
+          </div>
+
           <div className="text-xs font-bold text-slate-400 uppercase tracking-wider pt-2">Role Portals</div>
           <div className="grid grid-cols-2 gap-2">
+            <button
+              onClick={() => {
+                setActiveRole("admin");
+                setCurrentPage("admin");
+                setMobileMenuOpen(false);
+              }}
+              className={`flex items-center gap-2 p-2 rounded-lg text-xs font-medium text-left col-span-2 ${
+                currentPage === "admin" ? "bg-indigo-50 text-indigo-900 font-bold border border-indigo-200" : "bg-indigo-50/40 text-indigo-900 hover:bg-indigo-50"
+              }`}
+            >
+              <Building2 className="w-4 h-4 text-indigo-600" />
+              <span>Staff Admin Portal (/admin)</span>
+            </button>
             {roles.map((r) => {
               const Icon = r.icon;
               return (
