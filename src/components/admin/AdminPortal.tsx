@@ -48,6 +48,7 @@ import {
   AlertUrgency,
 } from "../../services/notificationService";
 import { getCurrentAuthSession, clearAuthToken } from "../../lib/auth";
+import { BackButton } from "../common/BackButton";
 
 export const AdminPortal: React.FC = () => {
   const {
@@ -153,7 +154,12 @@ export const AdminPortal: React.FC = () => {
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-8 animate-fade-in text-slate-900">
+    <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-6 animate-fade-in text-slate-900">
+      {/* Top Back Navigation */}
+      <div className="flex items-center justify-between">
+        <BackButton label="Back to Previous Screen" fallbackPage="home" showHomeButton={true} />
+      </div>
+
       {/* Top Banner & Authentication Bar */}
       <div className="bg-gradient-to-r from-slate-950 via-slate-900 to-indigo-950 text-white rounded-3xl p-6 sm:p-8 shadow-xl border border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div className="flex items-center gap-4">

@@ -1,6 +1,6 @@
 {
   "name": "People's Hospital",
-  "description": "Smart Hospital, Pharmacy & Patient Care Management System for People's Hospital connecting patients, doctors, pharmacists, laboratories, and care teams.",
+  "description": "Enterprise Healthcare & Clinical Care Management System for People's Hospital, featuring real-time Cloud Firestore patient registry sync and Google Workspace Suite integrations (Drive, Gmail, Docs, Sheets, Calendar, Slides, Tasks, Chat, Forms, Keep).",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

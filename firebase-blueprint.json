@@ -1,0 +1,161 @@
+{
+  "entities": {
+    "Patient": {
+      "title": "Patient",
+      "description": "Patient medical profile containing personal, clinical, and emergency contact information",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier matching the Firebase Auth UID"
+        },
+        "name": {
+          "type": "string",
+          "description": "Full name of the patient",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "email": {
+          "type": "string",
+          "description": "Patient email address matching Firebase Auth",
+          "maxLength": 150
+        },
+        "phone": {
+          "type": "string",
+          "description": "Primary contact telephone number",
+          "maxLength": 30
+        },
+        "age": {
+          "type": "number",
+          "description": "Age in years"
+        },
+        "gender": {
+          "type": "string",
+          "description": "Biological sex / gender designation",
+          "maxLength": 20
+        },
+        "bloodGroup": {
+          "type": "string",
+          "description": "ABO and Rh blood group (e.g. O+, A-, B+)",
+          "maxLength": 10
+        },
+        "medicalHistory": {
+          "type": "array",
+          "description": "List of chronic diagnoses or past clinical conditions"
+        },
+        "allergies": {
+          "type": "array",
+          "description": "List of documented medication or food allergies"
+        },
+        "chronicConditions": {
+          "type": "array",
+          "description": "List of active diagnosed chronic conditions"
+        },
+        "emergencyContact": {
+          "type": "object",
+          "description": "Emergency contact name, relation, and phone number"
+        },
+        "vitals": {
+          "type": "object",
+          "description": "Baseline or recorded vital signs"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "ISO timestamp of profile creation"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "ISO timestamp of last profile update"
+        }
+      },
+      "required": ["id", "name", "email"]
+    },
+    "Appointment": {
+      "title": "Appointment",
+      "description": "Hospital OPD consultation booking record",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique appointment identifier"
+        },
+        "patientId": {
+          "type": "string",
+          "description": "Firebase Auth UID of the patient"
+        },
+        "patientName": {
+          "type": "string",
+          "description": "Patient name",
+          "maxLength": 100
+        },
+        "patientEmail": {
+          "type": "string",
+          "description": "Patient email address",
+          "maxLength": 150
+        },
+        "patientPhone": {
+          "type": "string",
+          "description": "Patient phone number",
+          "maxLength": 30
+        },
+        "doctorName": {
+          "type": "string",
+          "description": "Attending physician name",
+          "maxLength": 100
+        },
+        "doctorId": {
+          "type": "string",
+          "description": "Doctor identifier",
+          "maxLength": 50
+        },
+        "department": {
+          "type": "string",
+          "description": "Medical specialty / department",
+          "maxLength": 80
+        },
+        "roomNumber": {
+          "type": "string",
+          "description": "Consultation room / OPD bay",
+          "maxLength": 30
+        },
+        "date": {
+          "type": "string",
+          "description": "Appointment date"
+        },
+        "time": {
+          "type": "string",
+          "description": "Scheduled time slot"
+        },
+        "tokenNumber": {
+          "type": "number",
+          "description": "Sequential queue token number"
+        },
+        "status": {
+          "type": "string",
+          "description": "Booking status (booked, confirmed, completed, cancelled)",
+          "enum": ["booked", "confirmed", "in_progress", "completed", "cancelled"]
+        },
+        "symptoms": {
+          "type": "string",
+          "description": "Chief patient complaints or appointment notes",
+          "maxLength": 500
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Creation timestamp"
+        }
+      },
+      "required": ["id", "patientId", "patientName", "doctorName", "date", "status"]
+    }
+  },
+  "firestore": {
+    "/patients/{patientId}": {
+      "schema": "Patient",
+      "description": "Global patient records stored in Firestore, real-time synchronized across all connected client devices."
+    },
+    "/appointments/{appointmentId}": {
+      "schema": "Appointment",
+      "description": "Consultation appointments queryable and writable by patient owner."
+    }
+  }
+}

@@ -20,23 +20,38 @@ import {
   RefreshCw,
   AlertTriangle,
   FileCheck2,
+  HardDrive,
+  CalendarCheck,
+  QrCode,
+  ScanLine,
+  Search,
 } from "lucide-react";
 import { AutomatedReminderEngine } from "../appointments/AutomatedReminderEngine";
-import { HealthcareApiService } from "../../services/api";
+import { AppointmentQrCodePass } from "../appointments/AppointmentQrCodePass";
+import { ReceptionQrScannerModal } from "../appointments/ReceptionQrScannerModal";
+import { BackButton } from "../common/BackButton";
+import {
+  PatientDatabaseService,
+  PatientFormValidator,
+  ValidationErrors,
+} from "../../services/patientService";
 import { AlertUrgency } from "../../services/notificationService";
 
 export const AppointmentsPage: React.FC = () => {
   const {
     doctors,
     patients,
+    appointments,
     currentPatient,
     currentPatientId,
     openPatientAuth,
     bookAppointment,
+    checkInAppointment,
     sendAppointmentReminder,
     setActiveSmsPreview,
     showToast,
     setCurrentPage,
+    openDriveExportModal,
   } = useApp();
 
   const [selectedDept, setSelectedDept] = useState<string>("All");
@@ -45,23 +60,30 @@ export const AppointmentsPage: React.FC = () => {
     currentPatientId || patients[0]?.id || ""
   );
 
+  // Scanner modal state
+  const [scannerModalOpen, setScannerModalOpen] = useState(false);
+  const [scannerTargetAptId, setScannerTargetAptId] = useState<string | undefined>();
+  const [qrQueueFilter, setQrQueueFilter] = useState<"all" | "pending" | "checked-in">("all");
+
   // Form Fields
-  const [fullName, setFullName] = useState(currentPatient?.name || patients[0]?.name || "Eleanor Vance");
-  const [phone, setPhone] = useState(currentPatient?.phone || patients[0]?.phone || "+1 (555) 234-8901");
-  const [email, setEmail] = useState(currentPatient?.email || patients[0]?.email || "eleanor.vance@example.com");
+  const [fullName, setFullName] = useState(currentPatient?.name || "Eleanor Vance");
+  const [phone, setPhone] = useState(currentPatient?.phone || "+1 (555) 234-8901");
+  const [email, setEmail] = useState(currentPatient?.email || "eleanor.vance@example.com");
   const [dateOfBirth, setDateOfBirth] = useState("1988-06-14");
   const [gender, setGender] = useState(currentPatient?.gender || "Female");
   const [urgency, setUrgency] = useState<AlertUrgency>("routine");
-  const [date, setDate] = useState<string>(new Date().toISOString().split("T")[0]);
+  const [date, setDate] = useState<string>(
+    new Date(Date.now() + 86400000).toISOString().split("T")[0]
+  );
   const [time, setTime] = useState<string>("10:30 AM");
   const [consultType, setConsultType] = useState<"in_person" | "teleconsultation">("in_person");
-  const [symptoms, setSymptoms] = useState<string>("");
-  const [enableSmsReminder, setEnableSmsReminder] = useState<boolean>(true);
+  const [symptoms, setSymptoms] = useState<string>("Routine follow-up and annual physical review.");
   const [consentGiven, setConsentGiven] = useState(true);
   const [hipaaAgreed, setHipaaAgreed] = useState(true);
 
-  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [errors, setErrors] = useState<ValidationErrors>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submissionError, setSubmissionError] = useState<string | null>(null);
   const [confirmedPass, setConfirmedPass] = useState<any | null>(null);
 
   // Sync when currentPatient changes
@@ -75,7 +97,15 @@ export const AppointmentsPage: React.FC = () => {
     }
   }, [currentPatient]);
 
-  const departments = ["All", "Cardiology", "Endocrinology", "Pediatrics", "Internal Medicine", "Orthopedics"];
+  const departments = [
+    "All",
+    "Cardiology",
+    "Endocrinology",
+    "Pediatrics",
+    "Internal Medicine",
+    "Orthopedics",
+    "Neurology",
+  ];
 
   const filteredDoctors = doctors.filter((doc) => {
     if (selectedDept === "All") return true;
@@ -96,23 +126,44 @@ export const AppointmentsPage: React.FC = () => {
     "04:15 PM",
   ];
 
+  // Auto-reset form helper
+  const handleResetForm = () => {
+    setFullName("");
+    setPhone("");
+    setEmail("");
+    setDateOfBirth("");
+    setSymptoms("");
+    setErrors({});
+    setSubmissionError(null);
+    setConfirmedPass(null);
+  };
+
   const handleBooking = async (e: React.FormEvent) => {
     e.preventDefault();
+    setSubmissionError(null);
 
-    // 1. Validate form fields
-    const validation = HealthcareApiService.validateSubmissionForm({
+    // 1. Client-Side Field Validation
+    const validation = PatientFormValidator.validateAppointmentBooking({
       fullName,
       phone,
       email,
       dateOfBirth,
-      medicalConcern: symptoms || "Routine Clinical Consultation & Examination",
+      gender,
       department: selectedDoctor.department,
+      doctorId: selectedDoctor.id,
+      doctorName: selectedDoctor.name,
+      preferredDate: date,
+      preferredTime: time,
+      consultType,
+      symptoms,
+      urgency,
       consentGiven,
       hipaaAgreed,
     });
 
     if (!validation.isValid) {
       setErrors(validation.errors);
+      showToast("Please correct the form fields highlighted below.");
       return;
     }
 
@@ -120,8 +171,8 @@ export const AppointmentsPage: React.FC = () => {
     setIsSubmitting(true);
 
     try {
-      // 2. Submit to central database & trigger transactional notification hooks
-      const dbSubmission = await HealthcareApiService.submitAppointment({
+      // 2. Submit to database service abstraction (with local & backend fallback)
+      const result = await PatientDatabaseService.submitAppointment({
         fullName,
         phone,
         email,
@@ -133,7 +184,7 @@ export const AppointmentsPage: React.FC = () => {
         preferredDate: date,
         preferredTime: time,
         consultType,
-        symptoms: symptoms || "Routine Clinical Consultation",
+        symptoms,
         urgency,
         consentGiven,
         hipaaAgreed,
@@ -151,30 +202,37 @@ export const AppointmentsPage: React.FC = () => {
         date,
         time,
         type: consultType,
-        symptoms: symptoms || "Routine Clinical Consultation",
+        symptoms,
         roomNumber: `Room ${Math.floor(200 + Math.random() * 80)}`,
         reminderSent: false,
       });
 
       setConfirmedPass({
         ...booked,
-        referenceId: dbSubmission.referenceId,
-        encryptedPayloadHash: dbSubmission.encryptedPayloadHash,
-        urgency: dbSubmission.urgency,
-        notificationSummary: dbSubmission.notificationSummary,
+        referenceId: result.trackingId,
+        urgency: result.data.urgency,
+        storageSource: result.data.storageSource,
+        createdAt: result.data.createdAt,
       });
 
-      showToast(`Appointment booked! Ref #${dbSubmission.referenceId} | Token #${booked.tokenNumber}`);
-    } catch (err) {
+      showToast(`Appointment booked! Ref: ${result.trackingId} | Token #${booked.tokenNumber}`);
+    } catch (err: any) {
       console.error("Booking error:", err);
-      setErrors({ form: "Failed to transmit appointment to backend database. Please retry." });
+      setSubmissionError(
+        err.message || "Unable to connect to the healthcare database. If this is an emergency, please call 911 immediately."
+      );
     } finally {
       setIsSubmitting(false);
     }
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-8 animate-fade-in text-slate-900">
+    <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-6 animate-fade-in text-slate-900">
+      {/* Top Back Navigation Bar */}
+      <div className="flex items-center justify-between">
+        <BackButton label="Back to Previous Screen" fallbackPage="home" showHomeButton={true} />
+      </div>
+
       {/* Header Banner */}
       <div className="bg-gradient-to-r from-blue-900 via-teal-900 to-slate-900 text-white rounded-3xl p-6 sm:p-8 shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div>
@@ -190,9 +248,22 @@ export const AppointmentsPage: React.FC = () => {
           </p>
         </div>
 
-        <div className="flex items-center gap-2 text-xs bg-white/10 px-4 py-2 rounded-xl">
-          <ShieldCheck className="w-4 h-4 text-emerald-400" />
-          <span>Real-Time Database Sync (AES-256)</span>
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            type="button"
+            onClick={() => {
+              setScannerTargetAptId(appointments[0]?.id);
+              setScannerModalOpen(true);
+            }}
+            className="px-4 py-2.5 bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold rounded-xl text-xs transition flex items-center gap-2 shadow-md cursor-pointer"
+          >
+            <ScanLine className="w-4 h-4" />
+            <span>Reception Check-In Scanner</span>
+          </button>
+          <div className="flex items-center gap-2 text-xs bg-white/10 px-4 py-2 rounded-xl">
+            <ShieldCheck className="w-4 h-4 text-emerald-400" />
+            <span>Real-Time Database Sync (AES-256)</span>
+          </div>
         </div>
       </div>
 
@@ -200,124 +271,47 @@ export const AppointmentsPage: React.FC = () => {
       <AutomatedReminderEngine />
 
       {confirmedPass ? (
-        /* Confirmation Pass Card */
-        <div className="max-w-2xl mx-auto bg-white rounded-3xl p-6 sm:p-8 border border-emerald-300 shadow-2xl space-y-6 text-center animate-fade-in">
-          <div className="w-16 h-16 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto shadow-inner">
-            <CheckCircle2 className="w-8 h-8" />
-          </div>
-
-          <div className="space-y-1">
-            <h2 className="text-2xl font-extrabold text-slate-900">Appointment Registered in Central DB!</h2>
-            <p className="text-xs text-slate-500">Your digital token has been logged in the Hospital OPD Queue.</p>
-          </div>
-
-          <div className="bg-slate-50 border border-slate-200 rounded-2xl p-6 text-left space-y-4 shadow-xs">
-            <div className="flex justify-between items-center border-b border-slate-200 pb-3">
-              <div>
-                <div className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Queue Token #</div>
-                <div className="text-3xl font-black text-blue-600">#{confirmedPass.tokenNumber}</div>
-                <div className="text-xs font-mono font-bold text-teal-700 mt-0.5">Ref: {confirmedPass.referenceId}</div>
-              </div>
-              <div className="text-right">
-                <span className="text-xs font-bold bg-emerald-100 text-emerald-800 px-3 py-1 rounded-full uppercase">
-                  {confirmedPass.type.replace("_", " ")}
-                </span>
-                <div className="text-[10px] font-bold text-slate-500 uppercase mt-1">
-                  Urgency: {confirmedPass.urgency || "ROUTINE"}
-                </div>
-              </div>
+        /* Confirmation Pass Card with QR Code Generator */
+        <div className="max-w-3xl mx-auto space-y-6 animate-fade-in">
+          <div className="bg-white rounded-3xl p-6 sm:p-8 border border-emerald-300 shadow-2xl space-y-6 text-center">
+            <div className="w-16 h-16 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto shadow-inner">
+              <CheckCircle2 className="w-8 h-8" />
             </div>
 
-            <div className="grid grid-cols-2 gap-4 text-xs">
-              <div>
-                <span className="text-slate-400">Doctor:</span>
-                <div className="font-bold text-slate-900">{confirmedPass.doctorName}</div>
-                <div className="text-slate-500">{confirmedPass.department}</div>
-              </div>
-              <div>
-                <span className="text-slate-400">Patient:</span>
-                <div className="font-bold text-slate-900">{confirmedPass.patientName}</div>
-                <div className="text-slate-500 font-mono">{confirmedPass.patientPhone}</div>
-              </div>
-              <div>
-                <span className="text-slate-400">Date & Time:</span>
-                <div className="font-bold text-slate-900">
-                  {confirmedPass.date} at {confirmedPass.time}
-                </div>
-              </div>
-              <div>
-                <span className="text-slate-400">Location:</span>
-                <div className="font-bold text-slate-900">{confirmedPass.roomNumber} (Main OPD)</div>
-              </div>
+            <div className="space-y-1">
+              <h2 className="text-2xl font-extrabold text-slate-900">
+                Appointment Registered & QR Pass Generated!
+              </h2>
+              <p className="text-xs text-slate-500">
+                Present this QR pass to the OPD reception scanner or check-in kiosk on arrival.
+              </p>
             </div>
 
-            {/* Notification Summary */}
-            {confirmedPass.notificationSummary && (
-              <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 text-xs text-emerald-900 flex items-center gap-2">
-                <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
-                <span>{confirmedPass.notificationSummary}</span>
-              </div>
-            )}
+            {/* Embedded QR Code Pass Component */}
+            <AppointmentQrCodePass appointment={confirmedPass} showSimulateScanButton={true} />
 
-            {/* Automated 1-Day Reminder Status in Pass */}
-            <div className="bg-teal-50 border border-teal-200 rounded-xl p-3.5 flex items-center justify-between text-xs">
-              <div className="flex items-center gap-2 text-teal-900">
-                <BellRing className="w-4 h-4 text-teal-600 shrink-0" />
-                <div>
-                  <span className="font-bold">Automated 1-Day Reminder Active:</span>
-                  <div className="text-[11px] text-teal-700">
-                    SMS and in-app alert scheduled for 24 hours prior to appointment.
-                  </div>
-                </div>
-              </div>
-
+            <div className="flex flex-wrap gap-3 justify-center pt-2">
               <button
                 type="button"
-                onClick={() => {
-                  const log = sendAppointmentReminder(confirmedPass.id, {
-                    triggerType: "instant_preview",
-                  });
-                  if (log) {
-                    setActiveSmsPreview(log);
-                  }
-                }}
-                className="px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-lg text-xs transition flex items-center gap-1 shrink-0 cursor-pointer"
+                onClick={() => setConfirmedPass(null)}
+                className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold rounded-xl transition cursor-pointer"
               >
-                <Smartphone className="w-3.5 h-3.5" />
-                <span>Test SMS Preview</span>
+                Book Another Appointment
+              </button>
+              <button
+                type="button"
+                onClick={() => setCurrentPage("patient-portal")}
+                className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl transition cursor-pointer"
+              >
+                Go to Patient Portal
               </button>
             </div>
-
-            <div className="text-[10px] text-slate-400 font-mono pt-1">
-              Audit Hash: {confirmedPass.encryptedPayloadHash || "sha256_e749a9018bf2c110e9f4"}
-            </div>
-          </div>
-
-          <div className="flex flex-wrap gap-3 justify-center">
-            <button
-              onClick={() => window.print()}
-              className="px-4 py-2.5 bg-white hover:bg-slate-100 text-slate-700 text-xs font-bold rounded-xl border border-slate-300 transition flex items-center gap-1.5 cursor-pointer shadow-xs"
-            >
-              <Printer className="w-4 h-4" />
-              <span>Print Token Pass</span>
-            </button>
-            <button
-              onClick={() => setConfirmedPass(null)}
-              className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold rounded-xl transition cursor-pointer"
-            >
-              Book Another Appointment
-            </button>
-            <button
-              onClick={() => setCurrentPage("patient-portal")}
-              className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl transition cursor-pointer"
-            >
-              Go to Patient Portal
-            </button>
           </div>
         </div>
       ) : (
         /* Booking Workflow Grid */
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+        <div className="space-y-10">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
           {/* Left: Department & Doctor Selection */}
           <div className="lg:col-span-7 space-y-6">
             {/* Department Pills */}
@@ -408,10 +402,20 @@ export const AppointmentsPage: React.FC = () => {
                 </span>
               </div>
 
-              {errors.form && (
-                <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700 flex items-center gap-2">
-                  <AlertTriangle className="w-4 h-4 text-red-600 shrink-0" />
-                  <span>{errors.form}</span>
+              {/* Submission Error Banner */}
+              {submissionError && (
+                <div className="p-4 bg-red-50 border border-red-200 rounded-2xl text-xs text-red-800 space-y-2">
+                  <div className="flex items-center gap-2 font-bold text-red-900">
+                    <AlertTriangle className="w-4 h-4 text-red-600 shrink-0" />
+                    <span>Submission Error</span>
+                  </div>
+                  <p>{submissionError}</p>
+                  <div className="p-2.5 bg-red-100/70 border border-red-200 rounded-xl text-[11px] text-red-900 font-semibold flex items-center justify-between">
+                    <span>🚨 Medical Emergency Hotline:</span>
+                    <a href="tel:911" className="underline font-bold text-red-700 hover:text-red-900">
+                      Call 911 / (555) 911-0000
+                    </a>
+                  </div>
                 </div>
               )}
 
@@ -574,10 +578,10 @@ export const AppointmentsPage: React.FC = () => {
                   onChange={(e) => setSymptoms(e.target.value)}
                   placeholder="e.g. Mild chest tightness on exertion, routine blood pressure review..."
                   className={`w-full p-2.5 rounded-xl border ${
-                    errors.medicalConcern ? "border-red-500 bg-red-50/50" : "border-slate-300"
+                    errors.symptoms ? "border-red-500 bg-red-50/50" : "border-slate-300"
                   } focus:outline-none focus:border-blue-500`}
                 />
-                {errors.medicalConcern && <p className="text-[11px] text-red-500 mt-1">{errors.medicalConcern}</p>}
+                {errors.symptoms && <p className="text-[11px] text-red-500 mt-1">{errors.symptoms}</p>}
               </div>
 
               {/* Consent & HIPAA agreement */}
@@ -628,7 +632,102 @@ export const AppointmentsPage: React.FC = () => {
             </form>
           </div>
         </div>
+
+        {/* Section: Patient OPD QR Passes & Reception Check-In Queue */}
+        <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-sm space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-5">
+            <div>
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-teal-50 text-teal-800 border border-teal-200 rounded-full text-xs font-bold mb-1">
+                <QrCode className="w-3.5 h-3.5 text-teal-600" />
+                Optical QR Code Arrival Check-In Engine
+              </div>
+              <h3 className="text-lg font-bold text-slate-900">
+                Active OPD Queue Passes & Scannable QR Codes ({appointments.length})
+              </h3>
+              <p className="text-xs text-slate-500">
+                Patients can present these passes to reception staff for instant arrival scanning, or test the simulation scanner.
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <div className="flex bg-slate-100 p-1 rounded-xl text-xs font-bold">
+                <button
+                  type="button"
+                  onClick={() => setQrQueueFilter("all")}
+                  className={`px-3 py-1.5 rounded-lg transition cursor-pointer ${
+                    qrQueueFilter === "all"
+                      ? "bg-white text-slate-900 shadow-xs"
+                      : "text-slate-600 hover:text-slate-900"
+                  }`}
+                >
+                  All ({appointments.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setQrQueueFilter("pending")}
+                  className={`px-3 py-1.5 rounded-lg transition cursor-pointer ${
+                    qrQueueFilter === "pending"
+                      ? "bg-white text-amber-900 shadow-xs"
+                      : "text-slate-600 hover:text-slate-900"
+                  }`}
+                >
+                  Pending Scan (
+                  {appointments.filter((a) => a.status !== "checked-in" && a.status !== "completed").length}
+                  )
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setQrQueueFilter("checked-in")}
+                  className={`px-3 py-1.5 rounded-lg transition cursor-pointer ${
+                    qrQueueFilter === "checked-in"
+                      ? "bg-white text-emerald-900 shadow-xs"
+                      : "text-slate-600 hover:text-slate-900"
+                  }`}
+                >
+                  Checked-In ({appointments.filter((a) => a.status === "checked-in").length})
+                </button>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setScannerTargetAptId(appointments[0]?.id);
+                  setScannerModalOpen(true);
+                }}
+                className="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shrink-0"
+              >
+                <ScanLine className="w-4 h-4 text-teal-400" />
+                <span>Launch Scanner</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Cards Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6">
+            {appointments
+              .filter((apt) => {
+                if (qrQueueFilter === "pending") return apt.status !== "checked-in" && apt.status !== "completed";
+                if (qrQueueFilter === "checked-in") return apt.status === "checked-in";
+                return true;
+              })
+              .map((apt) => (
+                <AppointmentQrCodePass
+                  key={apt.id}
+                  appointment={apt}
+                  showSimulateScanButton={true}
+                />
+              ))}
+          </div>
+        </div>
+      </div>
       )}
+
+      {/* Reception Scanner Simulation Modal */}
+      <ReceptionQrScannerModal
+        isOpen={scannerModalOpen}
+        onClose={() => setScannerModalOpen(false)}
+        initialAppointmentId={scannerTargetAptId}
+      />
     </div>
   );
 };

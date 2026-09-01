@@ -1,0 +1,30 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // Patient Records: Restricted so only the authenticated patient owner can read and write their document
+    match /patients/{patientId} {
+      allow read, write: if request.auth != null && request.auth.uid == patientId;
+    }
+
+    // Appointments Collection: Restricted to authenticated patient owner
+    match /appointments/{appointmentId} {
+      allow read, write: if request.auth != null && (resource == null || resource.data.patientId == request.auth.uid || request.resource.data.patientId == request.auth.uid);
+    }
+
+    // Connection check and test document path
+    match /test/{docId} {
+      allow read, write: if true;
+    }
+
+    // General fallback rule
+    match /{document=**} {
+      allow read, write: if request.auth != null;
+    }
+  }
+}

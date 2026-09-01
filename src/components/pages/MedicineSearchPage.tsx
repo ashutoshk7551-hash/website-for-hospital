@@ -1,4 +1,5 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { useParams, useNavigate } from "react-router-dom";
 import { useApp } from "../../context/AppContext";
 import {
   Search,
@@ -13,13 +14,40 @@ import {
   Info,
 } from "lucide-react";
 import { MedicineItem } from "../../types";
+import { BackButton } from "../common/BackButton";
 
 export const MedicineSearchPage: React.FC = () => {
   const { medicines, setAiModalOpen, setAiModalInitialType, setCurrentPage } = useApp();
+  const { id } = useParams<{ id?: string }>();
+  const navigate = useNavigate();
 
   const [query, setQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [selectedMed, setSelectedMed] = useState<MedicineItem | null>(null);
+
+  // Sync route param with selected medicine modal
+  useEffect(() => {
+    if (id) {
+      const match = medicines.find(
+        (m) => m.id.toLowerCase() === id.toLowerCase() || m.name.toLowerCase().replace(/\s+/g, "-") === id.toLowerCase()
+      );
+      if (match) {
+        setSelectedMed(match);
+      }
+    } else {
+      setSelectedMed(null);
+    }
+  }, [id, medicines]);
+
+  const handleOpenDetail = (med: MedicineItem) => {
+    setSelectedMed(med);
+    navigate(`/medicines/${med.id}`);
+  };
+
+  const handleCloseDetail = () => {
+    setSelectedMed(null);
+    navigate("/medicines");
+  };
 
   const categories = ["all", ...Array.from(new Set(medicines.map((m) => m.category)))];
 
@@ -35,7 +63,12 @@ export const MedicineSearchPage: React.FC = () => {
   });
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8 animate-fade-in">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-6 animate-fade-in">
+      {/* Top Back Navigation */}
+      <div className="flex items-center justify-between">
+        <BackButton label="Back to Previous Screen" fallbackPage="home" showHomeButton={true} />
+      </div>
+
       {/* Header */}
       <div className="bg-gradient-to-r from-teal-800 via-slate-900 to-blue-900 text-white rounded-3xl p-6 sm:p-8 shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div>
@@ -130,7 +163,12 @@ export const MedicineSearchPage: React.FC = () => {
 
               {/* Indications Tags */}
               <div className="flex flex-wrap gap-1 pt-1">
-                {med.indications.split(", ").slice(0, 3).map((ind, i) => (
+                {((Array.isArray(med.indications)
+                  ? med.indications
+                  : typeof med.indications === "string"
+                  ? med.indications.split(", ")
+                  : []) as string[]
+                ).slice(0, 3).map((ind, i) => (
                   <span
                     key={i}
                     className="text-[10px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded-md font-medium"
@@ -144,15 +182,15 @@ export const MedicineSearchPage: React.FC = () => {
             {/* Bottom Actions */}
             <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
               <button
-                onClick={() => setSelectedMed(med)}
-                className="text-xs font-bold text-teal-600 hover:text-teal-800 flex items-center gap-1"
+                onClick={() => handleOpenDetail(med)}
+                className="text-xs font-bold text-teal-600 hover:text-teal-800 flex items-center gap-1 cursor-pointer"
               >
                 <Info className="w-3.5 h-3.5" /> Clinical Details
               </button>
 
               <button
                 onClick={() => setCurrentPage("doctor-pharmacist-connect")}
-                className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-semibold rounded-lg transition flex items-center gap-1"
+                className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-semibold rounded-lg transition flex items-center gap-1 cursor-pointer"
               >
                 <MessageSquare className="w-3.5 h-3.5 text-teal-600" />
                 Consult Pharmacist
@@ -177,8 +215,8 @@ export const MedicineSearchPage: React.FC = () => {
                 <p className="text-xs text-slate-500 mt-0.5">Generic Name: {selectedMed.genericName} • Strength: {selectedMed.strength}</p>
               </div>
               <button
-                onClick={() => setSelectedMed(null)}
-                className="text-slate-400 hover:text-slate-700 text-lg font-bold"
+                onClick={handleCloseDetail}
+                className="text-slate-400 hover:text-slate-700 text-lg font-bold cursor-pointer"
               >
                 ✕
               </button>
@@ -187,19 +225,19 @@ export const MedicineSearchPage: React.FC = () => {
             <div className="space-y-3 text-xs text-slate-700">
               <div className="p-3 bg-slate-50 rounded-xl space-y-1">
                 <span className="font-bold text-slate-900">Approved Clinical Indications:</span>
-                <p className="text-slate-600">{selectedMed.indications.join(", ")}</p>
+                <p className="text-slate-600">{Array.isArray(selectedMed.indications) ? selectedMed.indications.join(", ") : selectedMed.indications}</p>
               </div>
 
               <div className="p-3 bg-red-50 rounded-xl border border-red-200 space-y-1">
                 <span className="font-bold text-red-900 flex items-center gap-1">
                   <ShieldAlert className="w-3.5 h-3.5" /> Clinical Contraindications:
                 </span>
-                <p className="text-red-800">{selectedMed.contraindications.join(", ") || "None documented for standard adult population."}</p>
+                <p className="text-red-800">{Array.isArray(selectedMed.contraindications) ? selectedMed.contraindications.join(", ") : selectedMed.contraindications || "None documented for standard adult population."}</p>
               </div>
 
               <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 space-y-1">
                 <span className="font-bold text-amber-900">Documented Common Side Effects:</span>
-                <p className="text-amber-800">{selectedMed.sideEffects.join(", ")}</p>
+                <p className="text-amber-800">{Array.isArray(selectedMed.sideEffects) ? selectedMed.sideEffects.join(", ") : selectedMed.sideEffects}</p>
               </div>
 
               <div className="grid grid-cols-2 gap-2 pt-1 text-[11px]">
@@ -217,18 +255,18 @@ export const MedicineSearchPage: React.FC = () => {
             <div className="flex justify-between items-center pt-2">
               <button
                 onClick={() => {
-                  setSelectedMed(null);
+                  handleCloseDetail();
                   setAiModalInitialType("interaction");
                   setAiModalOpen(true);
                 }}
-                className="px-4 py-2.5 bg-teal-500 hover:bg-teal-600 text-slate-950 text-xs font-bold rounded-xl flex items-center gap-1.5 transition"
+                className="px-4 py-2.5 bg-teal-500 hover:bg-teal-600 text-slate-950 text-xs font-bold rounded-xl flex items-center gap-1.5 transition cursor-pointer"
               >
                 <Sparkles className="w-4 h-4" /> Screen Drug Interactions
               </button>
 
               <button
-                onClick={() => setSelectedMed(null)}
-                className="px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl transition"
+                onClick={handleCloseDetail}
+                className="px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl transition cursor-pointer"
               >
                 Close
               </button>

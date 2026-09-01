@@ -8,6 +8,8 @@ export interface Patient {
   bloodGroup: string;
   phone: string;
   email: string;
+  medicalHistory?: string[];
+  createdAt?: string;
   emergencyContact: {
     name: string;
     relationship: string;
@@ -50,7 +52,7 @@ export interface Appointment {
   date: string;
   time: string;
   type: "in-person" | "teleconsultation" | "emergency-followup";
-  status: "confirmed" | "completed" | "cancelled" | "in-progress" | "scheduled";
+  status: "confirmed" | "checked-in" | "completed" | "cancelled" | "in-progress" | "scheduled";
   symptoms: string;
   tokenNumber: string;
   roomNumber: string;
@@ -60,6 +62,10 @@ export interface Appointment {
   reminderChannels?: ("sms" | "in-app")[];
   reminderSmsStatus?: "Delivered" | "Sent" | "Scheduled" | "Pending";
   reminderMessage?: string;
+  checkedInAt?: string;
+  checkInMethod?: "qr_scan" | "reception_manual" | "kiosk";
+  qrCheckInCode?: string;
+  queuePosition?: number;
 }
 
 export interface AppointmentReminderLog {

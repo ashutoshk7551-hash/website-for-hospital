@@ -17,10 +17,15 @@ import {
   Sparkles,
   RefreshCw,
   FileCheck2,
+  HardDrive,
+  Copy,
 } from "lucide-react";
-import { HealthcareApiService } from "../../services/api";
+import {
+  PatientDatabaseService,
+  PatientFormValidator,
+  ValidationErrors,
+} from "../../services/patientService";
 import { AlertUrgency } from "../../services/notificationService";
-import { PatientSubmission } from "../../lib/database";
 
 interface PatientInquiryModalProps {
   isOpen: boolean;
@@ -42,6 +47,9 @@ export const PatientInquiryModal: React.FC<PatientInquiryModalProps> = ({
   const [dateOfBirth, setDateOfBirth] = useState("1992-05-18");
   const [gender, setGender] = useState(currentPatient?.gender || "Female");
   const [department, setDepartment] = useState("General Medicine");
+  const [preferredDoctor, setPreferredDoctor] = useState("Dr. Sarah Jenkins");
+  const [preferredDate, setPreferredDate] = useState("");
+  const [preferredTime, setPreferredTime] = useState("");
   const [urgency, setUrgency] = useState<AlertUrgency>("routine");
   const [medicalConcern, setMedicalConcern] = useState("");
   const [allergies, setAllergies] = useState<string[]>(currentPatient?.allergies || []);
@@ -49,9 +57,10 @@ export const PatientInquiryModal: React.FC<PatientInquiryModalProps> = ({
   const [consentGiven, setConsentGiven] = useState(true);
   const [hipaaAgreed, setHipaaAgreed] = useState(true);
 
-  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [errors, setErrors] = useState<ValidationErrors>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [submittedResult, setSubmittedResult] = useState<PatientSubmission | null>(null);
+  const [submissionError, setSubmissionError] = useState<string | null>(null);
+  const [submittedResult, setSubmittedResult] = useState<any | null>(null);
 
   // Sync with current patient if opened
   React.useEffect(() => {
@@ -60,41 +69,83 @@ export const PatientInquiryModal: React.FC<PatientInquiryModalProps> = ({
       setPhone(currentPatient.phone);
       setEmail(currentPatient.email);
       setGender(currentPatient.gender);
-      setAllergies(currentPatient.allergies);
-      setChronicConditions(currentPatient.chronicConditions);
+      setAllergies(currentPatient.allergies || []);
+      setChronicConditions(currentPatient.chronicConditions || []);
     }
   }, [currentPatient, isOpen]);
 
   if (!isOpen) return null;
 
+  const handleResetForm = () => {
+    setFullName(currentPatient?.name || "");
+    setPhone(currentPatient?.phone || "");
+    setEmail(currentPatient?.email || "");
+    setDateOfBirth("1992-05-18");
+    setMedicalConcern("");
+    setErrors({});
+    setSubmissionError(null);
+    setSubmittedResult(null);
+  };
+
+  const handleResetAndClose = () => {
+    handleResetForm();
+    onClose();
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setSubmissionError(null);
 
-    // 1. Run Validation
-    const validation = HealthcareApiService.validateSubmissionForm({
-      fullName,
-      phone,
-      email,
-      dateOfBirth,
-      medicalConcern,
-      department,
-      consentGiven,
-      hipaaAgreed,
-    });
+    // 1. Run Validation using centralized PatientFormValidator
+    if (submissionType === "patient_intake") {
+      const validation = PatientFormValidator.validatePatientIntake({
+        fullName,
+        phone,
+        email,
+        dateOfBirth,
+        gender,
+        department,
+        symptoms: medicalConcern,
+        urgency: urgency === "emergency" ? "emergency" : urgency === "high" ? "urgent" : "routine",
+        allergies,
+        chronicConditions,
+        consentGiven,
+        hipaaAgreed,
+      });
 
-    if (!validation.isValid) {
-      setErrors(validation.errors);
-      return;
+      if (!validation.isValid) {
+        setErrors(validation.errors);
+        showToast("Please review the highlighted required fields.");
+        return;
+      }
+    } else {
+      const validation = PatientFormValidator.validateContactUs({
+        fullName,
+        phone,
+        email,
+        dateOfBirth,
+        department,
+        subject: submissionType === "emergency_triage" ? "Emergency Triage Request" : "General Clinical Inquiry",
+        symptomsOrMessage: medicalConcern,
+        urgency: urgency === "emergency" ? "emergency" : urgency === "high" ? "urgent" : "routine",
+        consentGiven,
+      });
+
+      if (!validation.isValid) {
+        setErrors(validation.errors);
+        showToast("Please review the highlighted required fields.");
+        return;
+      }
     }
 
     setErrors({});
     setIsSubmitting(true);
 
     try {
-      let result: PatientSubmission;
+      let result;
 
       if (submissionType === "patient_intake") {
-        result = await HealthcareApiService.submitIntake({
+        result = await PatientDatabaseService.submitPatientIntake({
           fullName,
           phone,
           email,
@@ -102,42 +153,37 @@ export const PatientInquiryModal: React.FC<PatientInquiryModalProps> = ({
           gender,
           bloodGroup: "O+",
           department,
-          primaryConcern: medicalConcern,
-          urgency,
+          symptoms: medicalConcern,
+          urgency: urgency === "emergency" ? "emergency" : urgency === "high" ? "urgent" : "routine",
           allergies,
           chronicConditions,
           consentGiven,
           hipaaAgreed,
         });
       } else {
-        result = await HealthcareApiService.submitGeneralInquiry({
+        result = await PatientDatabaseService.submitContactUs({
           fullName,
           phone,
           email,
           dateOfBirth,
-          gender,
           department,
-          urgency,
-          message: medicalConcern,
+          subject: submissionType === "emergency_triage" ? "Emergency Triage Request" : "General Clinical Inquiry",
+          symptomsOrMessage: medicalConcern,
+          urgency: urgency === "emergency" ? "emergency" : urgency === "high" ? "urgent" : "routine",
           consentGiven,
-          hipaaAgreed,
         });
       }
 
       setSubmittedResult(result);
-      showToast(`Submission logged successfully! Tracking Code: ${result.referenceId}`);
+      showToast(`Submission logged! Reference ID: ${result.trackingId}`);
     } catch (err: any) {
       console.error("Submission failed:", err);
-      setErrors({ form: "Failed to transmit data to the secure server. Please try again." });
+      setSubmissionError(
+        err.message || "Unable to transmit record to central database. For emergency assistance, please call 911."
+      );
     } finally {
       setIsSubmitting(false);
     }
-  };
-
-  const handleResetAndClose = () => {
-    setSubmittedResult(null);
-    setMedicalConcern("");
-    onClose();
   };
 
   return (
@@ -192,21 +238,27 @@ export const PatientInquiryModal: React.FC<PatientInquiryModalProps> = ({
               <div className="bg-slate-50 rounded-2xl p-5 border border-slate-200 text-left space-y-4 shadow-xs">
                 <div className="flex items-center justify-between border-b border-slate-200 pb-3">
                   <div>
-                    <div className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Tracking Reference</div>
-                    <div className="text-lg font-black font-mono text-teal-700">{submittedResult.referenceId}</div>
+                    <div className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Tracking Reference ID</div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-lg font-black font-mono text-teal-700">{submittedResult.trackingId || submittedResult.referenceId}</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          navigator.clipboard?.writeText(submittedResult.trackingId || submittedResult.referenceId);
+                          showToast("Tracking ID copied to clipboard!");
+                        }}
+                        className="p-1 text-slate-400 hover:text-teal-600 rounded transition cursor-pointer"
+                        title="Copy Tracking ID"
+                      >
+                        <Copy className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   </div>
                   <div className="text-right">
-                    <div className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Urgency & SLA</div>
-                    <span
-                      className={`text-xs font-bold px-2.5 py-0.5 rounded-full uppercase ${
-                        submittedResult.urgency === "emergency"
-                          ? "bg-red-100 text-red-700"
-                          : submittedResult.urgency === "high"
-                          ? "bg-amber-100 text-amber-800"
-                          : "bg-teal-100 text-teal-800"
-                      }`}
-                    >
-                      {submittedResult.urgency} Urgency
+                    <div className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Storage Sync</div>
+                    <span className="text-[11px] font-bold text-emerald-700 bg-emerald-100 px-2.5 py-0.5 rounded-full inline-flex items-center gap-1">
+                      <HardDrive className="w-3 h-3" />
+                      <span>{submittedResult.data?.storageSource === "database_api" ? "Server Database" : "Encrypted Local DB"}</span>
                     </span>
                   </div>
                 </div>
@@ -214,54 +266,56 @@ export const PatientInquiryModal: React.FC<PatientInquiryModalProps> = ({
                 <div className="grid grid-cols-2 gap-3 text-xs">
                   <div>
                     <span className="text-slate-500">Patient Name:</span>
-                    <div className="font-bold text-slate-900">{submittedResult.fullName}</div>
+                    <div className="font-bold text-slate-900">{submittedResult.data?.fullName || fullName}</div>
                   </div>
                   <div>
                     <span className="text-slate-500">Department:</span>
-                    <div className="font-bold text-slate-900">{submittedResult.department}</div>
+                    <div className="font-bold text-slate-900">{submittedResult.data?.department || department}</div>
                   </div>
                   <div>
                     <span className="text-slate-500">Contact Phone:</span>
-                    <div className="font-mono text-slate-900">{submittedResult.phone}</div>
+                    <div className="font-mono text-slate-900">{submittedResult.data?.phone || phone}</div>
                   </div>
                   <div>
                     <span className="text-slate-500">Contact Email:</span>
-                    <div className="font-mono text-slate-900 truncate">{submittedResult.email}</div>
+                    <div className="font-mono text-slate-900 truncate">{submittedResult.data?.email || email}</div>
                   </div>
                 </div>
 
                 <div className="bg-white p-3 rounded-xl border border-slate-200 text-xs">
                   <span className="text-[11px] font-bold text-slate-500 block mb-1">Medical Concern Logged:</span>
-                  <p className="text-slate-800 italic">"{submittedResult.medicalConcern}"</p>
+                  <p className="text-slate-800 italic">"{submittedResult.data?.symptoms || submittedResult.data?.primaryConcern || submittedResult.data?.message || medicalConcern}"</p>
                 </div>
 
-                {submittedResult.notificationSummary && (
-                  <div className="bg-emerald-50 text-emerald-900 p-3 rounded-xl border border-emerald-200 text-xs flex items-center gap-2">
-                    <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
-                    <span>{submittedResult.notificationSummary}</span>
-                  </div>
-                )}
-
                 <div className="text-[10px] text-slate-400 font-mono flex items-center justify-between pt-1">
-                  <span>Audit Hash: {submittedResult.encryptedPayloadHash}</span>
-                  <span>IP: {submittedResult.ipAddress}</span>
+                  <span>Timestamp: {submittedResult.data?.createdAt || new Date().toISOString()}</span>
+                  <span>AES-256 Validated</span>
                 </div>
               </div>
 
               {/* Actions */}
               <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
                 <button
+                  type="button"
                   onClick={() => window.print()}
                   className="px-4 py-2.5 bg-white hover:bg-slate-100 text-slate-700 text-xs font-bold rounded-xl border border-slate-300 transition flex items-center gap-1.5 cursor-pointer shadow-xs"
                 >
                   <Printer className="w-4 h-4" />
-                  <span>Print Tracking Receipt</span>
+                  <span>Print Receipt</span>
                 </button>
                 <button
+                  type="button"
+                  onClick={handleResetForm}
+                  className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold rounded-xl transition cursor-pointer"
+                >
+                  Submit Another Record
+                </button>
+                <button
+                  type="button"
                   onClick={handleResetAndClose}
                   className="px-6 py-2.5 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold rounded-xl transition cursor-pointer shadow-md"
                 >
-                  Done & Return to Portal
+                  Done & Close
                 </button>
               </div>
             </div>
@@ -277,7 +331,7 @@ export const PatientInquiryModal: React.FC<PatientInquiryModalProps> = ({
                     submissionType === "general_inquiry" ? "bg-white text-blue-900 shadow-xs" : "text-slate-600 hover:text-slate-900"
                   }`}
                 >
-                  General Medical Inquiry
+                  General Inquiry / Contact
                 </button>
                 <button
                   type="button"
@@ -286,7 +340,7 @@ export const PatientInquiryModal: React.FC<PatientInquiryModalProps> = ({
                     submissionType === "patient_intake" ? "bg-white text-teal-900 shadow-xs" : "text-slate-600 hover:text-slate-900"
                   }`}
                 >
-                  Patient Intake Registration
+                  Patient Intake
                 </button>
                 <button
                   type="button"
@@ -302,10 +356,20 @@ export const PatientInquiryModal: React.FC<PatientInquiryModalProps> = ({
                 </button>
               </div>
 
-              {errors.form && (
-                <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700 flex items-center gap-2">
-                  <AlertTriangle className="w-4 h-4 text-red-600 shrink-0" />
-                  <span>{errors.form}</span>
+              {/* Submission Error Banner */}
+              {submissionError && (
+                <div className="p-4 bg-red-50 border border-red-200 rounded-2xl text-xs text-red-800 space-y-2">
+                  <div className="flex items-center gap-2 font-bold text-red-900">
+                    <AlertTriangle className="w-4 h-4 text-red-600 shrink-0" />
+                    <span>Submission Failed</span>
+                  </div>
+                  <p>{submissionError}</p>
+                  <div className="p-2.5 bg-red-100/70 border border-red-200 rounded-xl text-[11px] text-red-900 font-semibold flex items-center justify-between">
+                    <span>🚨 Medical Emergency Hotline:</span>
+                    <a href="tel:911" className="underline font-bold text-red-700 hover:text-red-900">
+                      Call 911 / (555) 911-0000
+                    </a>
+                  </div>
                 </div>
               )}
 

@@ -12,7 +12,9 @@ import {
   QrCode,
   CheckCircle2,
   AlertTriangle,
+  HardDrive,
 } from "lucide-react";
+import { BackButton } from "../common/BackButton";
 
 export const DigitalPrescriptionPage: React.FC = () => {
   const {
@@ -22,6 +24,7 @@ export const DigitalPrescriptionPage: React.FC = () => {
     setAiModalInitialType,
     showToast,
     setCurrentPage,
+    openDriveExportModal,
   } = useApp();
 
   const [selectedRxId, setSelectedRxId] = useState<string>(prescriptions[0]?.id || "");
@@ -37,7 +40,12 @@ export const DigitalPrescriptionPage: React.FC = () => {
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8 animate-fade-in">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-6 animate-fade-in">
+      {/* Top Back Navigation */}
+      <div className="flex items-center justify-between">
+        <BackButton label="Back to Previous Screen" fallbackPage="home" showHomeButton={true} />
+      </div>
+
       {/* Top Banner */}
       <div className="bg-gradient-to-r from-blue-900 via-indigo-950 to-slate-900 text-white rounded-3xl p-6 sm:p-8 shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div>
@@ -233,10 +241,23 @@ export const DigitalPrescriptionPage: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    onClick={() =>
+                      openDriveExportModal(
+                        `Rx_${currentRx.prescriptionNumber}_${currentRx.patientName.replace(/\s+/g, "_")}`,
+                        currentRx,
+                        "PRESCRIPTION"
+                      )
+                    }
+                    className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-sm transition flex items-center gap-2 cursor-pointer"
+                  >
+                    <HardDrive className="w-4 h-4" />
+                    <span>Save to Drive</span>
+                  </button>
                   <button
                     onClick={handleSendToPharmacy}
-                    className="px-4 py-2.5 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold rounded-xl shadow-sm transition flex items-center gap-2"
+                    className="px-4 py-2.5 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold rounded-xl shadow-sm transition flex items-center gap-2 cursor-pointer"
                   >
                     <Send className="w-4 h-4" />
                     Route to Pharmacy
@@ -246,7 +267,7 @@ export const DigitalPrescriptionPage: React.FC = () => {
                       setCurrentPage("pharmacist-portal");
                       showToast("Opened Pharmacist Verification Station");
                     }}
-                    className="px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl shadow-sm transition"
+                    className="px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl shadow-sm transition cursor-pointer"
                   >
                     Dispense as Pharmacist
                   </button>

@@ -1,4 +1,5 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { useParams, useNavigate } from "react-router-dom";
 import { useApp } from "../../context/AppContext";
 import {
   Activity,
@@ -13,7 +14,13 @@ import {
   ShieldCheck,
   CheckCircle2,
   UserPlus,
+  HardDrive,
+  Lock,
+  Unlock,
 } from "lucide-react";
+import { BackButton } from "../common/BackButton";
+import { PrivateDetailsLock } from "../patients/PrivateDetailsLock";
+import { Patient } from "../../types";
 
 export const HealthRecordsPage: React.FC = () => {
   const {
@@ -24,17 +31,41 @@ export const HealthRecordsPage: React.FC = () => {
     prescriptions,
     labTests,
     showToast,
+    openDriveExportModal,
+    setCurrentPage,
   } = useApp();
 
+  const { id } = useParams<{ id?: string }>();
+  const navigate = useNavigate();
+
   const [selectedPatientId, setSelectedPatientId] = useState<string>(
-    currentPatientId || patients[0]?.id || ""
+    id || currentPatientId || patients[0]?.id || ""
   );
 
-  React.useEffect(() => {
-    if (currentPatientId) {
+  const [isSensitiveUnlocked, setIsSensitiveUnlocked] = useState(false);
+  const [privatePatientData, setPrivatePatientData] = useState<Patient | null>(null);
+
+  useEffect(() => {
+    if (id) {
+      const match = patients.find(
+        (p) => p.id.toLowerCase() === id.toLowerCase() || p.name.toLowerCase().replace(/\s+/g, "-") === id.toLowerCase()
+      );
+      if (match) {
+        setSelectedPatientId(match.id);
+        setIsSensitiveUnlocked(false);
+        setPrivatePatientData(null);
+      }
+    } else if (currentPatientId) {
       setSelectedPatientId(currentPatientId);
     }
-  }, [currentPatientId]);
+  }, [id, currentPatientId, patients]);
+
+  const handleSelectPatient = (patientId: string) => {
+    setSelectedPatientId(patientId);
+    setIsSensitiveUnlocked(false);
+    setPrivatePatientData(null);
+    navigate(`/records/${patientId}`);
+  };
 
   const activePatient = patients.find((p) => p.id === selectedPatientId) || currentPatient || patients[0];
 
@@ -46,8 +77,19 @@ export const HealthRecordsPage: React.FC = () => {
     showToast(`Full FHIR JSON & PDF Health Record for ${activePatient.name} exported!`);
   };
 
+  const handleLockRecords = () => {
+    setIsSensitiveUnlocked(false);
+    setPrivatePatientData(null);
+    showToast("🔒 Sensitive patient records locked.");
+  };
+
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8 animate-fade-in">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-6 animate-fade-in">
+      {/* Top Back Navigation */}
+      <div className="flex items-center justify-between">
+        <BackButton label="Back to Previous Screen" fallbackPage="home" showHomeButton={true} />
+      </div>
+
       {/* Header */}
       <div className="bg-gradient-to-r from-slate-900 via-blue-950 to-teal-950 text-white rounded-3xl p-6 sm:p-8 shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div>
@@ -64,12 +106,40 @@ export const HealthRecordsPage: React.FC = () => {
         </div>
 
         <div className="flex flex-wrap gap-2">
+          {isSensitiveUnlocked && (
+            <button
+              id="records-page-lock-btn"
+              onClick={handleLockRecords}
+              className="px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-slate-950 text-xs font-bold rounded-xl shadow-sm transition flex items-center gap-2 cursor-pointer"
+            >
+              <Lock className="w-4 h-4" />
+              <span>Lock Records</span>
+            </button>
+          )}
+          <button
+            onClick={() =>
+              openDriveExportModal(
+                `EHR_${activePatient?.name.replace(/\s+/g, "_")}_${new Date().toISOString().slice(0, 10)}`,
+                {
+                  patient: activePatient,
+                  prescriptions: patientRxs,
+                  labTests: patientLabs,
+                  exportedAt: new Date().toISOString(),
+                },
+                "EHR_SUMMARY"
+              )
+            }
+            className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-sm transition flex items-center gap-2 cursor-pointer"
+          >
+            <HardDrive className="w-4 h-4" />
+            <span>Save to Google Drive</span>
+          </button>
           <button
             onClick={handleExportEHR}
-            className="px-4 py-2.5 bg-teal-500 hover:bg-teal-600 text-slate-950 text-xs font-bold rounded-xl shadow-sm transition flex items-center gap-2"
+            className="px-4 py-2.5 bg-teal-500 hover:bg-teal-600 text-slate-950 text-xs font-bold rounded-xl shadow-sm transition flex items-center gap-2 cursor-pointer"
           >
             <Download className="w-4 h-4" />
-            Export Complete EHR
+            Export Local JSON
           </button>
         </div>
       </div>
@@ -84,7 +154,7 @@ export const HealthRecordsPage: React.FC = () => {
           {patients.map((p) => (
             <button
               key={p.id}
-              onClick={() => setSelectedPatientId(p.id)}
+              onClick={() => handleSelectPatient(p.id)}
               className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition cursor-pointer ${
                 p.id === activePatient.id
                   ? "bg-blue-600 text-white shadow-xs"
@@ -104,6 +174,19 @@ export const HealthRecordsPage: React.FC = () => {
         </div>
       </div>
 
+      {/* Password Protection Barrier for EHR */}
+      {activePatient && (
+        <PrivateDetailsLock
+          patientId={activePatient.id}
+          patientEmail={activePatient.email}
+          onUnlocked={(data) => {
+            setIsSensitiveUnlocked(true);
+            setPrivatePatientData(data);
+          }}
+          onLocked={handleLockRecords}
+        />
+      )}
+
       {/* Main EHR Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
         {/* Left Col (4 cols): Patient Bio, Allergies, Chronic Conditions */}
@@ -111,12 +194,19 @@ export const HealthRecordsPage: React.FC = () => {
           <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-xs space-y-5">
             <div className="flex items-center gap-4">
               <div className="w-14 h-14 rounded-2xl bg-blue-100 text-blue-800 flex items-center justify-center text-xl font-bold">
-                {activePatient.name.split(" ").map((n) => n[0]).join("")}
+                {(activePatient?.name || "Patient").split(" ").map((n) => n[0]).join("")}
               </div>
               <div>
-                <h2 className="text-base font-bold text-slate-900">{activePatient.name}</h2>
-                <p className="text-xs text-slate-500">ID: {activePatient.id} • {activePatient.age} Yrs ({activePatient.gender})</p>
-                <div className="text-xs text-teal-700 font-semibold mt-0.5">Blood Group: {activePatient.bloodGroup}</div>
+                <h2 className="text-base font-bold text-slate-900">{activePatient?.name || "Patient Record"}</h2>
+                <p className="text-xs text-slate-500">ID: {activePatient?.id || "N/A"} • {activePatient?.age ?? 0} Yrs ({activePatient?.gender || "N/A"})</p>
+                <div className="text-xs text-teal-700 font-semibold mt-0.5">
+                  Blood Group:{" "}
+                  {isSensitiveUnlocked && privatePatientData ? (
+                    <span className="font-bold text-teal-800">{privatePatientData.bloodGroup}</span>
+                  ) : (
+                    <span className="text-amber-700 font-medium">🔒 Protected</span>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -127,32 +217,58 @@ export const HealthRecordsPage: React.FC = () => {
                 Documented Drug & Food Allergies:
               </div>
               <div className="flex flex-wrap gap-1.5">
-                {activePatient.allergies.map((all, i) => (
-                  <span
-                    key={i}
-                    className="text-xs bg-white text-red-700 border border-red-300 px-2.5 py-1 rounded-lg font-bold"
-                  >
-                    ⚠️ {all}
+                {isSensitiveUnlocked && privatePatientData ? (
+                  (privatePatientData.allergies || []).map((all, i) => (
+                    <span
+                      key={i}
+                      className="text-xs bg-white text-red-700 border border-red-300 px-2.5 py-1 rounded-lg font-bold"
+                    >
+                      ⚠️ {all}
+                    </span>
+                  ))
+                ) : (
+                  <span className="text-xs text-amber-800 flex items-center gap-1">
+                    <Lock className="w-3 h-3 text-amber-600" />
+                    Enter password above to decrypt clinical allergy profile
                   </span>
-                ))}
+                )}
+                {isSensitiveUnlocked && privatePatientData && (!privatePatientData.allergies || privatePatientData.allergies.length === 0) && (
+                  <span className="text-xs text-slate-500">No known allergies documented.</span>
+                )}
               </div>
             </div>
 
             {/* Chronic Conditions */}
             <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-2">
               <div className="text-xs font-bold text-slate-900">Chronic Medical Conditions:</div>
-              <ul className="text-xs text-slate-600 space-y-1 list-disc list-inside">
-                {activePatient.chronicConditions.map((cond, i) => (
-                  <li key={i} className="font-medium">{cond}</li>
-                ))}
-              </ul>
+              {isSensitiveUnlocked && privatePatientData ? (
+                <ul className="text-xs text-slate-600 space-y-1 list-disc list-inside">
+                  {(privatePatientData.chronicConditions || []).map((cond, i) => (
+                    <li key={i} className="font-medium">{cond}</li>
+                  ))}
+                  {(!privatePatientData.chronicConditions || privatePatientData.chronicConditions.length === 0) && (
+                    <li className="list-none text-slate-500">None documented.</li>
+                  )}
+                </ul>
+              ) : (
+                <div className="text-xs text-slate-500 flex items-center gap-1">
+                  <Lock className="w-3 h-3 text-slate-400" />
+                  Medical history records locked by default.
+                </div>
+              )}
             </div>
 
             {/* Emergency Contact */}
             <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 text-xs space-y-1 text-slate-700">
               <div className="font-bold text-slate-900">Emergency Contact:</div>
-              <div>{activePatient.emergencyContact.name} ({activePatient.emergencyContact.relationship})</div>
-              <div className="text-slate-500">{activePatient.emergencyContact.phone}</div>
+              <div>{activePatient?.emergencyContact?.name || "Family Contact"} ({activePatient?.emergencyContact?.relationship || "Primary"})</div>
+              <div className="text-slate-500">
+                {isSensitiveUnlocked && privatePatientData ? (
+                  privatePatientData.emergencyContact?.phone || activePatient?.emergencyContact?.phone || "On File"
+                ) : (
+                  "•••••••• (Locked)"
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -169,25 +285,25 @@ export const HealthRecordsPage: React.FC = () => {
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
               <div className="p-3 bg-blue-50/70 border border-blue-200 rounded-xl">
                 <span className="text-blue-700 text-[10px] font-bold uppercase">Blood Pressure</span>
-                <div className="text-lg font-bold text-slate-900 mt-0.5">{activePatient.recentVitals.bloodPressure}</div>
+                <div className="text-lg font-bold text-slate-900 mt-0.5">{activePatient?.recentVitals?.bloodPressure || "120/80 mmHg"}</div>
                 <span className="text-[10px] text-slate-500">mmHg</span>
               </div>
 
               <div className="p-3 bg-red-50/70 border border-red-200 rounded-xl">
                 <span className="text-red-700 text-[10px] font-bold uppercase">Heart Rate</span>
-                <div className="text-lg font-bold text-slate-900 mt-0.5">{activePatient.recentVitals.heartRate}</div>
+                <div className="text-lg font-bold text-slate-900 mt-0.5">{activePatient?.recentVitals?.heartRate ?? 72}</div>
                 <span className="text-[10px] text-slate-500">bpm (Resting)</span>
               </div>
 
               <div className="p-3 bg-teal-50/70 border border-teal-200 rounded-xl">
                 <span className="text-teal-700 text-[10px] font-bold uppercase">Blood Sugar</span>
-                <div className="text-lg font-bold text-slate-900 mt-0.5">{activePatient.recentVitals.bloodSugar}</div>
+                <div className="text-lg font-bold text-slate-900 mt-0.5">{activePatient?.recentVitals?.bloodSugar ?? 96}</div>
                 <span className="text-[10px] text-slate-500">mg/dL (Fasting)</span>
               </div>
 
               <div className="p-3 bg-purple-50/70 border border-purple-200 rounded-xl">
                 <span className="text-purple-700 text-[10px] font-bold uppercase">Oxygen Saturation</span>
-                <div className="text-lg font-bold text-slate-900 mt-0.5">{activePatient.recentVitals.oxygenSaturation}%</div>
+                <div className="text-lg font-bold text-slate-900 mt-0.5">{activePatient?.recentVitals?.oxygenSaturation ?? 98}%</div>
                 <span className="text-[10px] text-slate-500">SpO2</span>
               </div>
             </div>

@@ -16,6 +16,7 @@ import {
   Plus,
   GitBranch,
 } from "lucide-react";
+import { BackButton } from "../common/BackButton";
 
 export const HospitalDashboard: React.FC = () => {
   const {
@@ -41,7 +42,12 @@ export const HospitalDashboard: React.FC = () => {
   const totalRevenueMock = "$184,520";
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8 animate-fade-in">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-6 animate-fade-in">
+      {/* Top Back Navigation */}
+      <div className="flex items-center justify-between">
+        <BackButton label="Back to Previous Screen" fallbackPage="home" showHomeButton={true} />
+      </div>
+
       {/* Admin Header */}
       <div className="bg-gradient-to-r from-indigo-900 via-slate-900 to-blue-950 text-white rounded-3xl p-6 sm:p-8 shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div className="flex items-center gap-4">

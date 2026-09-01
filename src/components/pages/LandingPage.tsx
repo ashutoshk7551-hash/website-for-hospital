@@ -23,6 +23,7 @@ import {
   GitBranch,
   UserPlus,
   LogIn,
+  HardDrive,
 } from "lucide-react";
 
 export const LandingPage: React.FC = () => {
@@ -145,6 +146,15 @@ export const LandingPage: React.FC = () => {
                 >
                   <Building2 className="w-4 h-4 text-indigo-300" />
                   <span>Staff Admin (/admin)</span>
+                </button>
+
+                <button
+                  id="hero-drive-btn"
+                  onClick={() => setCurrentPage("google-drive-vault")}
+                  className="px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white text-xs sm:text-sm font-semibold rounded-xl shadow-lg shadow-blue-600/25 flex items-center gap-2 transition hover:-translate-y-0.5 cursor-pointer"
+                >
+                  <HardDrive className="w-4 h-4" />
+                  <span>Google Drive Vault</span>
                 </button>
 
                 <button

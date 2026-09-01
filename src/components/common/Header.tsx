@@ -3,6 +3,8 @@ import { useApp, PageId } from "../../context/AppContext";
 import { UserRole } from "../../types";
 import {
   Activity,
+  Home,
+  ArrowLeft,
   User,
   Stethoscope,
   Pill,
@@ -29,6 +31,15 @@ import {
   LogOut,
   HeartPulse,
   RefreshCw,
+  HardDrive,
+  Mail,
+  Users,
+  Table,
+  Presentation,
+  CheckSquare,
+  ClipboardList,
+  StickyNote,
+  Layers,
 } from "lucide-react";
 
 export const Header: React.FC = () => {
@@ -37,6 +48,9 @@ export const Header: React.FC = () => {
     setActiveRole,
     currentPage,
     setCurrentPage,
+    resetToHome,
+    goBack,
+    canGoBack,
     notifications,
     markNotificationRead,
     clearAllNotifications,
@@ -56,6 +70,7 @@ export const Header: React.FC = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [notifDropdownOpen, setNotifDropdownOpen] = useState(false);
   const [portalsDropdownOpen, setPortalsDropdownOpen] = useState(false);
+  const [workspaceDropdownOpen, setWorkspaceDropdownOpen] = useState(false);
   const [toolsDropdownOpen, setToolsDropdownOpen] = useState(false);
   const [patientMenuOpen, setPatientMenuOpen] = useState(false);
   const [staffMenuOpen, setStaffMenuOpen] = useState(false);
@@ -77,13 +92,17 @@ export const Header: React.FC = () => {
 
   const navLinks: { id: PageId; label: string; icon: any }[] = [
     { id: "home", label: "Home", icon: Activity },
-    { id: "medicine-search", label: "Medicine Search", icon: Search },
+    { id: "patient-list", label: "Patients (Live Sync)", icon: Users },
     { id: "appointments", label: "Appointments", icon: Calendar },
+    { id: "google-docs", label: "Google Docs", icon: FileText },
+    { id: "gmail-hub", label: "Gmail Hub", icon: Mail },
+    { id: "google-drive-vault", label: "Drive Vault", icon: HardDrive },
     { id: "digital-prescription", label: "e-Prescription", icon: FileText },
+    { id: "medicine-search", label: "Services", icon: Search },
     { id: "doctor-pharmacist-connect", label: "Doctor ↔ Pharmacist", icon: MessageSquare },
     { id: "department-flow", label: "Hospital Flow", icon: GitBranch },
-    { id: "competition", label: "Competition Demo", icon: Award },
-    { id: "analytics", label: "Analytics", icon: BarChart3 },
+    { id: "about", label: "About Us", icon: Info },
+    { id: "contact", label: "Contact", icon: PhoneCall },
   ];
 
   return (
@@ -181,27 +200,41 @@ export const Header: React.FC = () => {
       {/* Main Navigation Bar */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
-          {/* Brand Logo */}
-          <div
-            id="brand-logo"
-            onClick={() => setCurrentPage("home")}
-            className="flex items-center gap-3 cursor-pointer group"
-          >
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 via-teal-600 to-emerald-500 flex items-center justify-center text-white shadow-md shadow-blue-500/20 group-hover:scale-105 transition-transform">
-              <Activity className="w-6 h-6" />
-            </div>
-            <div>
-              <div className="flex items-center gap-1.5">
-                <span className="text-lg font-bold tracking-tight text-slate-900 font-sans">
-                  People's<span className="text-teal-600"> Hospital</span>
-                </span>
-                <span className="text-[10px] bg-teal-50 text-teal-700 font-semibold px-1.5 py-0.5 rounded border border-teal-200">
-                  HEALTH SYSTEM
-                </span>
+          {/* Brand Logo & Optional Back Button */}
+          <div className="flex items-center gap-2">
+            {canGoBack && currentPage !== "home" && (
+              <button
+                id="header-quick-back-btn"
+                onClick={goBack}
+                className="flex items-center justify-center p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 hover:text-slate-900 border border-slate-200/90 shadow-2xs transition active:scale-95 cursor-pointer lg:hidden"
+                title="Go back to previous screen"
+              >
+                <ArrowLeft className="w-4 h-4 text-teal-600" />
+              </button>
+            )}
+
+            <div
+              id="brand-logo"
+              onClick={resetToHome}
+              className="flex items-center gap-3 cursor-pointer group"
+              title="Return to Primary Home Dashboard"
+            >
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 via-teal-600 to-emerald-500 flex items-center justify-center text-white shadow-md shadow-blue-500/20 group-hover:scale-105 transition-transform">
+                <Activity className="w-6 h-6" />
               </div>
-              <p className="text-[11px] text-slate-500 hidden sm:block">
-                Hospital, Pharmacy & Patient Management System
-              </p>
+              <div>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-lg font-bold tracking-tight text-slate-900 font-sans">
+                    People's<span className="text-teal-600"> Hospital</span>
+                  </span>
+                  <span className="text-[10px] bg-teal-50 text-teal-700 font-semibold px-1.5 py-0.5 rounded border border-teal-200">
+                    HEALTH SYSTEM
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-500 hidden sm:block">
+                  Hospital, Pharmacy & Patient Management System
+                </p>
+              </div>
             </div>
           </div>
 
@@ -355,6 +388,197 @@ export const Header: React.FC = () => {
                       <div className="text-[10px] text-slate-400">Sample Tracking, Digital Reports</div>
                     </div>
                   </button>
+                </div>
+              )}
+            </div>
+
+            {/* Google Workspace Dropdown */}
+            <div className="relative">
+              <button
+                id="workspace-dropdown-btn"
+                onClick={() => setWorkspaceDropdownOpen(!workspaceDropdownOpen)}
+                onBlur={() => setTimeout(() => setWorkspaceDropdownOpen(false), 200)}
+                className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium rounded-lg transition ${
+                  [
+                    "workspace-suite",
+                    "google-drive-vault",
+                    "gmail-hub",
+                    "google-docs",
+                    "google-sheets",
+                    "google-calendar",
+                    "google-slides",
+                    "google-tasks",
+                    "google-chat",
+                    "google-forms",
+                    "google-keep",
+                  ].includes(currentPage)
+                    ? "bg-blue-50 text-blue-700 font-bold"
+                    : "text-slate-600 hover:text-slate-900 hover:bg-slate-50"
+                }`}
+              >
+                <Sparkles className="w-3.5 h-3.5 text-blue-600" />
+                <span>Google Workspace</span>
+                <ChevronDown className="w-3.5 h-3.5" />
+              </button>
+
+              {workspaceDropdownOpen && (
+                <div className="absolute right-0 mt-2 w-72 bg-white rounded-2xl shadow-2xl border border-slate-200 py-2.5 z-50 animate-fade-in max-h-[85vh] overflow-y-auto">
+                  <div className="px-3.5 pb-2 border-b border-slate-100 flex items-center justify-between">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                      Google Workspace Hub
+                    </span>
+                    <button
+                      onClick={() => {
+                        setCurrentPage("workspace-suite");
+                        setWorkspaceDropdownOpen(false);
+                      }}
+                      className="text-[11px] font-bold text-blue-600 hover:underline"
+                    >
+                      Overview Suite →
+                    </button>
+                  </div>
+
+                  <div className="divide-y divide-slate-100">
+                    <button
+                      onClick={() => {
+                        setCurrentPage("google-drive-vault");
+                        setWorkspaceDropdownOpen(false);
+                      }}
+                      className="w-full text-left px-3.5 py-2 text-xs hover:bg-slate-50 flex items-center gap-2.5 text-slate-700"
+                    >
+                      <HardDrive className="w-4 h-4 text-blue-600 shrink-0" />
+                      <div>
+                        <div className="font-semibold text-slate-900">Google Drive Vault</div>
+                        <div className="text-[10px] text-slate-500">HIPAA Cloud EHR & Scans</div>
+                      </div>
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        setCurrentPage("gmail-hub");
+                        setWorkspaceDropdownOpen(false);
+                      }}
+                      className="w-full text-left px-3.5 py-2 text-xs hover:bg-slate-50 flex items-center gap-2.5 text-slate-700"
+                    >
+                      <Mail className="w-4 h-4 text-rose-600 shrink-0" />
+                      <div>
+                        <div className="font-semibold text-slate-900">Gmail Clinical Hub</div>
+                        <div className="text-[10px] text-slate-500">Patient Advisories & Notices</div>
+                      </div>
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        setCurrentPage("google-docs");
+                        setWorkspaceDropdownOpen(false);
+                      }}
+                      className="w-full text-left px-3.5 py-2 text-xs hover:bg-slate-50 flex items-center gap-2.5 text-slate-700"
+                    >
+                      <FileText className="w-4 h-4 text-sky-600 shrink-0" />
+                      <div>
+                        <div className="font-semibold text-slate-900">Google Docs Summarizer</div>
+                        <div className="text-[10px] text-slate-500">Discharge Notes & Case Files</div>
+                      </div>
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        setCurrentPage("google-sheets");
+                        setWorkspaceDropdownOpen(false);
+                      }}
+                      className="w-full text-left px-3.5 py-2 text-xs hover:bg-slate-50 flex items-center gap-2.5 text-slate-700"
+                    >
+                      <Table className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <div>
+                        <div className="font-semibold text-slate-900">Google Sheets Registry</div>
+                        <div className="text-[10px] text-slate-500">Live Registry Sync & Ledgers</div>
+                      </div>
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        setCurrentPage("google-calendar");
+                        setWorkspaceDropdownOpen(false);
+                      }}
+                      className="w-full text-left px-3.5 py-2 text-xs hover:bg-slate-50 flex items-center gap-2.5 text-slate-700"
+                    >
+                      <Calendar className="w-4 h-4 text-blue-600 shrink-0" />
+                      <div>
+                        <div className="font-semibold text-slate-900">Google Calendar Sync</div>
+                        <div className="text-[10px] text-slate-500">Doctor Slots & Consultations</div>
+                      </div>
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        setCurrentPage("google-slides");
+                        setWorkspaceDropdownOpen(false);
+                      }}
+                      className="w-full text-left px-3.5 py-2 text-xs hover:bg-slate-50 flex items-center gap-2.5 text-slate-700"
+                    >
+                      <Presentation className="w-4 h-4 text-amber-500 shrink-0" />
+                      <div>
+                        <div className="font-semibold text-slate-900">Google Slides Case Studies</div>
+                        <div className="text-[10px] text-slate-500">Clinical Reviews & Deck Maker</div>
+                      </div>
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        setCurrentPage("google-tasks");
+                        setWorkspaceDropdownOpen(false);
+                      }}
+                      className="w-full text-left px-3.5 py-2 text-xs hover:bg-slate-50 flex items-center gap-2.5 text-slate-700"
+                    >
+                      <CheckSquare className="w-4 h-4 text-indigo-600 shrink-0" />
+                      <div>
+                        <div className="font-semibold text-slate-900">Google Tasks Care Tracker</div>
+                        <div className="text-[10px] text-slate-500">Bedside & Rx To-Do Items</div>
+                      </div>
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        setCurrentPage("google-chat");
+                        setWorkspaceDropdownOpen(false);
+                      }}
+                      className="w-full text-left px-3.5 py-2 text-xs hover:bg-slate-50 flex items-center gap-2.5 text-slate-700"
+                    >
+                      <MessageSquare className="w-4 h-4 text-teal-600 shrink-0" />
+                      <div>
+                        <div className="font-semibold text-slate-900">Google Chat Care Channel</div>
+                        <div className="text-[10px] text-slate-500">Emergency & Triage Alerts</div>
+                      </div>
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        setCurrentPage("google-forms");
+                        setWorkspaceDropdownOpen(false);
+                      }}
+                      className="w-full text-left px-3.5 py-2 text-xs hover:bg-slate-50 flex items-center gap-2.5 text-slate-700"
+                    >
+                      <ClipboardList className="w-4 h-4 text-purple-600 shrink-0" />
+                      <div>
+                        <div className="font-semibold text-slate-900">Google Forms Surveys</div>
+                        <div className="text-[10px] text-slate-500">Intake & Feedback Questionnaires</div>
+                      </div>
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        setCurrentPage("google-keep");
+                        setWorkspaceDropdownOpen(false);
+                      }}
+                      className="w-full text-left px-3.5 py-2 text-xs hover:bg-slate-50 flex items-center gap-2.5 text-slate-700"
+                    >
+                      <StickyNote className="w-4 h-4 text-amber-500 shrink-0" />
+                      <div>
+                        <div className="font-semibold text-slate-900">Google Keep Bedside Notes</div>
+                        <div className="text-[10px] text-slate-500">Quick Shift Handover Scratchpad</div>
+                      </div>
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
@@ -779,10 +1003,10 @@ export const Header: React.FC = () => {
               ) : (
                 <button
                   id="header-sign-in-btn"
-                  onClick={() => openPatientAuth("register")}
+                  onClick={() => openPatientAuth("signin")}
                   className="flex items-center gap-1.5 bg-gradient-to-r from-blue-600 to-teal-600 hover:from-blue-700 hover:to-teal-700 text-white px-3.5 py-1.5 rounded-xl text-xs font-bold shadow-md shadow-blue-500/20 transition cursor-pointer"
                 >
-                  <UserPlus className="w-3.5 h-3.5" />
+                  <LogIn className="w-3.5 h-3.5" />
                   <span>Patient Sign In</span>
                 </button>
               )}
@@ -826,6 +1050,33 @@ export const Header: React.FC = () => {
       {/* Mobile Navigation Drawer */}
       {mobileMenuOpen && (
         <div className="lg:hidden bg-white border-b border-slate-200 px-4 pt-3 pb-6 space-y-4 animate-fade-in">
+          {/* Quick Primary Return Actions in Mobile Drawer */}
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              id="mobile-drawer-home-btn"
+              onClick={() => {
+                resetToHome();
+                setMobileMenuOpen(false);
+              }}
+              className="py-2.5 px-3 bg-teal-50 hover:bg-teal-100 text-teal-900 rounded-xl text-xs font-bold flex items-center justify-center gap-2 border border-teal-200 transition"
+            >
+              <Home className="w-4 h-4 text-teal-600" />
+              <span>Home / Main View</span>
+            </button>
+
+            <button
+              id="mobile-drawer-back-btn"
+              onClick={() => {
+                goBack();
+                setMobileMenuOpen(false);
+              }}
+              className="py-2.5 px-3 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl text-xs font-bold flex items-center justify-center gap-2 border border-slate-200 transition"
+            >
+              <ArrowLeft className="w-4 h-4 text-slate-600" />
+              <span>← Back</span>
+            </button>
+          </div>
+
           {/* Quick Search Bar in Mobile Drawer */}
           <button
             id="mobile-drawer-search-btn"

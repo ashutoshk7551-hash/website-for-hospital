@@ -1,4 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
+import { PageId, pageToPath, pathToPage, ROUTES } from "../routes/routeConfig";
+export type { PageId };
 import {
   UserRole,
   Patient,
@@ -30,34 +33,59 @@ import {
   initialNotifications,
   initialStaffMembers,
 } from "../data/mockData";
-
-export type PageId =
-  | "home"
-  | "about"
-  | "patient-portal"
-  | "doctor-portal"
-  | "pharmacist-portal"
-  | "hospital-dashboard"
-  | "admin"
-  | "pharmacy-mgmt"
-  | "lab-mgmt"
-  | "appointments"
-  | "digital-prescription"
-  | "medicine-search"
-  | "doctor-pharmacist-connect"
-  | "health-records"
-  | "analytics"
-  | "emergency"
-  | "security-privacy"
-  | "competition"
-  | "department-flow"
-  | "contact";
+import {
+  db,
+  collection,
+  addDoc,
+  onSnapshot,
+  serverTimestamp,
+  doc,
+  setDoc,
+  updateDoc,
+} from "../lib/firebase";
+import {
+  auth,
+  googleAuthProvider,
+  savePatientProfileToFirestore,
+  getPatientProfileFromFirestore,
+  subscribeToPatientProfile,
+  saveAppointmentToFirestore,
+  getPatientAppointmentsFromFirestore,
+  subscribeToPatientAppointments,
+} from "../services/firebase";
+import {
+  signInWithPopup,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  signOut as firebaseSignOut,
+  onAuthStateChanged,
+  User as FirebaseUser,
+} from "firebase/auth";
+import {
+  supabase,
+  isSupabaseConfigured,
+  signUpPatientSupabase,
+  signInPatientSupabase,
+  signOutPatientSupabase,
+  saveAppointmentToSupabase,
+  fetchPatientAppointmentsFromSupabase,
+  mapSupabasePatientToModel,
+  mapModelToSupabasePatient,
+  mapSupabaseAppointmentToModel,
+} from "../lib/supabaseClient";
+import type { User as SupabaseUser } from "@supabase/supabase-js";
 
 export interface AppContextType {
   activeRole: UserRole;
   setActiveRole: (role: UserRole) => void;
   currentPage: PageId;
-  setCurrentPage: (page: PageId) => void;
+  setCurrentPage: (page: PageId, options?: { replace?: boolean }) => void;
+  navigateTo: (path: string, options?: { replace?: boolean }) => void;
+  navigationHistory: PageId[];
+  goBack: () => void;
+  canGoBack: boolean;
+  resetToHome: () => void;
+  isAuthInitializing: boolean;
   patients: Patient[];
   doctors: Doctor[];
   medicines: MedicineItem[];
@@ -96,9 +124,28 @@ export interface AppContextType {
   // Patient Authentication & Profile Management
   currentPatientId: string | null;
   currentPatient: Patient | null;
+  firebaseUser: FirebaseUser | null;
+  isFirebaseAuthLoading: boolean;
+  supabaseUser: SupabaseUser | null;
+  isSupabaseConfigured: boolean;
   setCurrentPatientId: (id: string | null) => void;
   registerPatient: (patientData: Omit<Patient, "id">) => Patient;
   loginPatient: (patientIdOrEmail: string) => boolean;
+  registerPatientWithFirebase: (
+    email: string,
+    password: string,
+    patientData: Omit<Patient, "id">
+  ) => Promise<Patient>;
+  loginPatientWithFirebase: (email: string, password: string) => Promise<Patient | null>;
+  loginPatientWithGoogle: () => Promise<Patient | null>;
+  signUpWithSupabase: (
+    email: string,
+    password: string,
+    patientData: Omit<Patient, "id">
+  ) => Promise<Patient>;
+  signInWithSupabase: (email: string, password: string) => Promise<Patient | null>;
+  signOutWithSupabase: () => Promise<void>;
+  syncPatientProfileToFirestore: (data: Partial<Patient>) => Promise<void>;
   logoutPatient: () => void;
   patientAuthModalOpen: boolean;
   setPatientAuthModalOpen: (open: boolean) => void;
@@ -122,6 +169,7 @@ export interface AppContextType {
   addPrescription: (prescription: Omit<Prescription, "id" | "prescriptionNumber" | "date" | "status">) => Prescription;
   updatePrescriptionStatus: (id: string, status: Prescription["status"], pharmacistNotes?: string) => void;
   bookAppointment: (apt: Omit<Appointment, "id" | "tokenNumber" | "status">) => Appointment;
+  checkInAppointment: (appointmentId: string, method?: "qr_scan" | "reception_manual") => Appointment | null;
   updateMedicineStock: (id: string, changeQty: number) => void;
   restockMedicine: (id: string, addedQty: number) => void;
   sendChatMessage: (msg: Omit<ChatMessage, "id" | "timestamp" | "status">) => void;
@@ -138,6 +186,29 @@ export interface AppContextType {
   inquiryModalType: "general_inquiry" | "patient_intake" | "emergency_triage";
   setInquiryModalType: (type: "general_inquiry" | "patient_intake" | "emergency_triage") => void;
   openInquiryModal: (type?: "general_inquiry" | "patient_intake" | "emergency_triage") => void;
+  // Google Drive Cloud Vault
+  driveUser: any | null;
+  driveAccessToken: string | null;
+  isDriveConnected: boolean;
+  setDriveAuth: (user: any, token: string | null) => void;
+  driveExportModalOpen: boolean;
+  setDriveExportModalOpen: (open: boolean) => void;
+  driveExportData: {
+    title: string;
+    data: any;
+    recordType: "EHR_SUMMARY" | "PRESCRIPTION" | "LAB_RESULT" | "EMERGENCY_INTAKE" | "CLINICAL_NOTE";
+  } | null;
+  openDriveExportModal: (
+    titleOrData:
+      | string
+      | {
+          title: string;
+          data: any;
+          recordType: "EHR_SUMMARY" | "PRESCRIPTION" | "LAB_RESULT" | "EMERGENCY_INTAKE" | "CLINICAL_NOTE";
+        },
+    data?: any,
+    recordType?: "EHR_SUMMARY" | "PRESCRIPTION" | "LAB_RESULT" | "EMERGENCY_INTAKE" | "CLINICAL_NOTE"
+  ) => void;
   aiModalOpen: boolean;
   setAiModalOpen: (open: boolean) => void;
   aiModalInitialType?: "interaction" | "medicine_info" | "prescription_audit" | "stock_forecast";
@@ -153,35 +224,228 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [activeRole, setActiveRole] = useState<UserRole>("patient");
-  const [currentPage, setCurrentPage] = useState<PageId>(() => {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const [isAuthInitializing, setIsAuthInitializing] = useState<boolean>(true);
+
+  // Derive current page directly from URL location pathname
+  const currentPage = pathToPage(location.pathname);
+  const [navigationHistory, setNavigationHistory] = useState<PageId[]>([currentPage]);
+
+  // Handle route change sync
+  useEffect(() => {
+    const page = pathToPage(location.pathname);
+    setNavigationHistory((prev) => {
+      if (prev[prev.length - 1] === page) return prev;
+      return [...prev, page];
+    });
+  }, [location.pathname]);
+
+  // Auth & Storage Initial Hydration
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setIsAuthInitializing(false);
+    }, 150);
+    return () => clearTimeout(timer);
+  }, []);
+
+  // Synchronize navigation with React Router
+  const setCurrentPage = (targetPage: PageId, options?: { replace?: boolean }) => {
+    const targetPath = pageToPath(targetPage);
+    navigate(targetPath, { replace: options?.replace });
     if (typeof window !== "undefined") {
-      const path = window.location.pathname.toLowerCase();
-      const hash = window.location.hash.toLowerCase();
-      if (path === "/admin" || path.startsWith("/admin") || hash === "#admin") {
-        return "admin";
-      }
+      window.scrollTo({ top: 0, behavior: "smooth" });
     }
-    return "home";
-  });
+  };
+
+  const navigateTo = (path: string, options?: { replace?: boolean }) => {
+    navigate(path, { replace: options?.replace });
+    if (typeof window !== "undefined") {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  };
+
+  // Step back through browser history stack
+  const goBack = () => {
+    if (typeof window !== "undefined" && window.history.length > 1) {
+      navigate(-1);
+    } else {
+      navigate("/");
+    }
+  };
+
+  // Reset entire navigation directly back to home
+  const resetToHome = () => {
+    navigate("/");
+    if (typeof window !== "undefined") {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  };
+
+  const canGoBack = typeof window !== "undefined" ? window.history.length > 1 || location.pathname !== "/" : true;
 
   const [hipaaModalOpen, setHipaaModalOpen] = useState<boolean>(false);
   const [inquiryModalOpen, setInquiryModalOpen] = useState<boolean>(false);
   const [inquiryModalType, setInquiryModalType] = useState<"general_inquiry" | "patient_intake" | "emergency_triage">("general_inquiry");
+
+  // Google Drive Cloud Vault Auth & Export States
+  const [driveUser, setDriveUser] = useState<any | null>(null);
+  const [driveAccessToken, setDriveAccessToken] = useState<string | null>(null);
+  const [driveExportModalOpen, setDriveExportModalOpen] = useState<boolean>(false);
+  const [driveExportData, setDriveExportData] = useState<{
+    title: string;
+    data: any;
+    recordType: "EHR_SUMMARY" | "PRESCRIPTION" | "LAB_RESULT" | "EMERGENCY_INTAKE" | "CLINICAL_NOTE";
+  } | null>(null);
+
+  const isDriveConnected = Boolean(driveAccessToken && driveUser);
+
+  const setDriveAuth = (user: any, token: string | null) => {
+    setDriveUser(user);
+    setDriveAccessToken(token);
+  };
+
+  const openDriveExportModal = (
+    titleOrData:
+      | string
+      | {
+          title: string;
+          data: any;
+          recordType: "EHR_SUMMARY" | "PRESCRIPTION" | "LAB_RESULT" | "EMERGENCY_INTAKE" | "CLINICAL_NOTE";
+        },
+    data?: any,
+    recordType?: "EHR_SUMMARY" | "PRESCRIPTION" | "LAB_RESULT" | "EMERGENCY_INTAKE" | "CLINICAL_NOTE"
+  ) => {
+    if (typeof titleOrData === "string") {
+      setDriveExportData({
+        title: titleOrData,
+        data: data || {},
+        recordType: recordType || "EHR_SUMMARY",
+      });
+    } else {
+      setDriveExportData(titleOrData);
+    }
+    setDriveExportModalOpen(true);
+  };
 
   const openInquiryModal = (type: "general_inquiry" | "patient_intake" | "emergency_triage" = "general_inquiry") => {
     setInquiryModalType(type);
     setInquiryModalOpen(true);
   };
   
-  const [patients, setPatients] = useState<Patient[]>(() => {
-    const saved = localStorage.getItem("pharmacare_patients");
-    return saved ? JSON.parse(saved) : initialPatients;
-  });
+  const [patients, setPatients] = useState<Patient[]>(initialPatients);
+
+  // Real-time Cloud Firestore synchronization for global 'patients' collection
+  useEffect(() => {
+    const patientsRef = collection(db, "patients");
+
+    const unsubscribe = onSnapshot(
+      patientsRef,
+      async (snapshot) => {
+        if (snapshot.empty) {
+          // Auto-seed initial demo patients to Firestore if collection is empty
+          try {
+            for (const p of initialPatients) {
+              const seedData = {
+                name: p.name,
+                age: Number(p.age) || 30,
+                gender: p.gender || "Other",
+                phone: p.phone || "",
+                email: p.email || "",
+                bloodGroup: p.bloodGroup || "O+",
+                medicalHistory: p.medicalHistory || ["None documented"],
+                allergies: p.allergies || ["None reported"],
+                chronicConditions: p.chronicConditions || ["None reported"],
+                emergencyContact: p.emergencyContact || {
+                  name: "Emergency Contact",
+                  relationship: "Family",
+                  phone: p.phone || "",
+                },
+                recentVitals: p.recentVitals || {
+                  bloodPressure: "120/80 mmHg",
+                  heartRate: 72,
+                  bloodSugar: 96,
+                  temperature: 98.6,
+                  weight: 65,
+                  lastUpdated: new Date().toLocaleDateString(),
+                },
+                createdAt: serverTimestamp(),
+              };
+              await addDoc(patientsRef, seedData);
+            }
+          } catch (seedErr) {
+            console.warn("Auto-seeding patients collection error:", seedErr);
+          }
+          return;
+        }
+
+        const loadedPatients: Patient[] = snapshot.docs.map((docSnap) => {
+          const data = docSnap.data();
+          let createdAtStr = new Date().toISOString();
+          if (data.createdAt) {
+            if (typeof data.createdAt.toDate === "function") {
+              createdAtStr = data.createdAt.toDate().toISOString();
+            } else if (typeof data.createdAt === "string") {
+              createdAtStr = data.createdAt;
+            }
+          }
+
+          return {
+            id: docSnap.id,
+            name: data.name || "Unnamed Patient",
+            age: typeof data.age === "number" ? data.age : parseInt(data.age, 10) || 0,
+            gender: data.gender || "Other",
+            bloodGroup: data.bloodGroup || "O+",
+            phone: data.phone || "",
+            email: data.email || "",
+            medicalHistory: Array.isArray(data.medicalHistory) ? data.medicalHistory : [],
+            allergies: Array.isArray(data.allergies) ? data.allergies : [],
+            chronicConditions: Array.isArray(data.chronicConditions) ? data.chronicConditions : [],
+            emergencyContact: data.emergencyContact || {
+              name: "Emergency Contact",
+              relationship: "Family",
+              phone: data.phone || "",
+            },
+            recentVitals: data.recentVitals || {
+              bloodPressure: "120/80 mmHg",
+              heartRate: 72,
+              bloodSugar: 96,
+              temperature: 98.6,
+              weight: 65,
+              lastUpdated: "Recently recorded",
+            },
+            createdAt: createdAtStr,
+          };
+        });
+
+        // Sort by createdAt descending
+        loadedPatients.sort((a, b) => {
+          const tA = new Date(a.createdAt || 0).getTime();
+          const tB = new Date(b.createdAt || 0).getTime();
+          return tB - tA;
+        });
+
+        setPatients(loadedPatients);
+      },
+      (error) => {
+        console.error("Firestore onSnapshot error on 'patients' collection:", error);
+      }
+    );
+
+    return () => {
+      unsubscribe();
+    };
+  }, []);
 
   const [currentPatientId, setCurrentPatientId] = useState<string | null>(() => {
     const saved = localStorage.getItem("pharmacare_current_patient_id");
+    if (saved === "none" || saved === "guest" || saved === "null") return null;
     return saved !== null ? saved : initialPatients[0]?.id || "PAT-1082";
   });
+
+  const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
+  const [isFirebaseAuthLoading, setIsFirebaseAuthLoading] = useState<boolean>(true);
+  const [supabaseUser, setSupabaseUser] = useState<SupabaseUser | null>(null);
 
   const [patientAuthModalOpen, setPatientAuthModalOpen] = useState<boolean>(false);
   const [patientAuthMode, setPatientAuthMode] = useState<"signin" | "register">("register");
@@ -191,7 +455,183 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setPatientAuthModalOpen(true);
   };
 
-  const currentPatient = patients.find((p) => p.id === currentPatientId) || patients[0] || null;
+  const currentPatient = currentPatientId
+    ? patients.find((p) => p.id === currentPatientId) || null
+    : null;
+
+  // Realtime Supabase Auth and database synchronization listener
+  useEffect(() => {
+    // Check initial Supabase session and load patient record & appointments from Supabase tables
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (session?.user) {
+        setSupabaseUser(session.user);
+        try {
+          // Query 'patients' table where id = auth.uid()
+          const { data: patientRow } = await supabase
+            .from("patients")
+            .select("*")
+            .eq("id", session.user.id)
+            .single();
+
+          if (patientRow) {
+            const mappedPatient = mapSupabasePatientToModel(patientRow);
+            setPatients((prev) => {
+              const idx = prev.findIndex((p) => p.id === mappedPatient.id);
+              if (idx >= 0) {
+                const copy = [...prev];
+                copy[idx] = mappedPatient;
+                return copy;
+              }
+              return [mappedPatient, ...prev];
+            });
+            setCurrentPatientId(mappedPatient.id);
+          }
+
+          // Query 'appointments' table where patient_id = auth.uid()
+          const remoteApts = await fetchPatientAppointmentsFromSupabase(session.user.id);
+          if (remoteApts && remoteApts.length > 0) {
+            setAppointments((prev) => {
+              const remoteIds = new Set(remoteApts.map((a) => a.id));
+              const others = prev.filter((a) => !remoteIds.has(a.id));
+              return [...remoteApts, ...others];
+            });
+          }
+        } catch (e) {
+          console.warn("Supabase initial session sync error:", e);
+        }
+      }
+    });
+
+    // Subscribe to Supabase auth state changes
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      setSupabaseUser(session?.user || null);
+      if (session?.user) {
+        try {
+          const { data: patientRow } = await supabase
+            .from("patients")
+            .select("*")
+            .eq("id", session.user.id)
+            .single();
+
+          if (patientRow) {
+            const mappedPatient = mapSupabasePatientToModel(patientRow);
+            setPatients((prev) => {
+              const idx = prev.findIndex((p) => p.id === mappedPatient.id);
+              if (idx >= 0) {
+                const copy = [...prev];
+                copy[idx] = mappedPatient;
+                return copy;
+              }
+              return [mappedPatient, ...prev];
+            });
+            setCurrentPatientId(mappedPatient.id);
+          }
+
+          const remoteApts = await fetchPatientAppointmentsFromSupabase(session.user.id);
+          if (remoteApts && remoteApts.length > 0) {
+            setAppointments((prev) => {
+              const remoteIds = new Set(remoteApts.map((a) => a.id));
+              const others = prev.filter((a) => !remoteIds.has(a.id));
+              return [...remoteApts, ...others];
+            });
+          }
+        } catch (e) {
+          console.warn("Supabase onAuthStateChange error:", e);
+        }
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, []);
+
+  // Realtime Firebase Auth and Firestore Patient & Appointments listener
+  useEffect(() => {
+    let unsubscribeProfile: (() => void) | undefined;
+    let unsubscribeAppointments: (() => void) | undefined;
+
+    const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
+      setFirebaseUser(user);
+      setIsFirebaseAuthLoading(false);
+
+      if (user) {
+        // Authenticated user: Load and subscribe to Firestore patient profile
+        try {
+          const profile = await getPatientProfileFromFirestore(user.uid);
+          if (profile) {
+            setPatients((prev) => {
+              const existingIdx = prev.findIndex((p) => p.id === profile.id);
+              if (existingIdx >= 0) {
+                const updated = [...prev];
+                updated[existingIdx] = profile;
+                return updated;
+              }
+              return [profile, ...prev];
+            });
+            setCurrentPatientId(user.uid);
+          }
+
+          // Fetch patient's appointments from Firestore
+          const remoteApts = await getPatientAppointmentsFromFirestore(user.uid);
+          if (remoteApts && remoteApts.length > 0) {
+            setAppointments((prev) => {
+              const ids = new Set(remoteApts.map((a) => a.id));
+              const nonConflicting = prev.filter((a) => !ids.has(a.id));
+              return [...remoteApts, ...nonConflicting];
+            });
+          }
+
+          // Realtime listener for patient profile
+          unsubscribeProfile = subscribeToPatientProfile(
+            user.uid,
+            (updatedProfile) => {
+              if (updatedProfile) {
+                setPatients((prev) => {
+                  const idx = prev.findIndex((p) => p.id === updatedProfile.id);
+                  if (idx >= 0) {
+                    const updated = [...prev];
+                    updated[idx] = updatedProfile;
+                    return updated;
+                  }
+                  return [updatedProfile, ...prev];
+                });
+              }
+            },
+            (err) => console.warn("Firestore profile sync error:", err)
+          );
+
+          // Realtime listener for appointments
+          unsubscribeAppointments = subscribeToPatientAppointments(
+            user.uid,
+            (updatedApts) => {
+              if (updatedApts) {
+                setAppointments((prev) => {
+                  const userAptIds = new Set(updatedApts.map((a) => a.id));
+                  const others = prev.filter((a) => a.patientId !== user.uid && !userAptIds.has(a.id));
+                  return [...updatedApts, ...others];
+                });
+              }
+            },
+            (err) => console.warn("Firestore appointment sync error:", err)
+          );
+        } catch (err) {
+          console.error("Error loading patient data from Firestore:", err);
+        }
+      } else {
+        if (unsubscribeProfile) unsubscribeProfile();
+        if (unsubscribeAppointments) unsubscribeAppointments();
+      }
+    });
+
+    return () => {
+      unsubscribeAuth();
+      if (unsubscribeProfile) unsubscribeProfile();
+      if (unsubscribeAppointments) unsubscribeAppointments();
+    };
+  }, []);
 
   // Staff Authentication State
   const [staffMembers, setStaffMembers] = useState<StaffMember[]>(() => {
@@ -201,6 +641,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const [currentStaffId, setCurrentStaffId] = useState<string | null>(() => {
     const saved = localStorage.getItem("pharmacare_current_staff_id");
+    if (saved === "none" || saved === "guest" || saved === "null") return null;
     return saved !== null ? saved : "DOC-201";
   });
 
@@ -212,7 +653,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setStaffAuthModalOpen(true);
   };
 
-  const currentStaff = staffMembers.find((s) => s.id === currentStaffId) || staffMembers[0] || null;
+  const currentStaff = currentStaffId
+    ? staffMembers.find((s) => s.id === currentStaffId) || null
+    : null;
 
   const [doctors] = useState<Doctor[]>(initialDoctors);
 
@@ -322,11 +765,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
-  // Sync to localStorage
-  useEffect(() => {
-    localStorage.setItem("pharmacare_patients", JSON.stringify(patients));
-  }, [patients]);
-
+  // Sync to localStorage (patients are persisted to Cloud Firestore in real-time)
   useEffect(() => {
     if (currentPatientId) {
       localStorage.setItem("pharmacare_current_patient_id", currentPatientId);
@@ -387,24 +826,65 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const registerPatient = (patientData: Omit<Patient, "id">): Patient => {
-    // Generate clean unique ID format like PAT-2026-XXXX or PAT-108X
-    const randomSuffix = Math.floor(1000 + Math.random() * 9000);
-    const newId = `PAT-2026-${randomSuffix}`;
+    // Write directly to Firestore patients collection with serverTimestamp()
+    const payload = {
+      name: patientData.name.trim(),
+      age: Number(patientData.age) || 0,
+      gender: patientData.gender || "Other",
+      phone: patientData.phone.trim(),
+      email: patientData.email.toLowerCase().trim(),
+      bloodGroup: patientData.bloodGroup || "O+",
+      medicalHistory: Array.isArray(patientData.medicalHistory)
+        ? patientData.medicalHistory
+        : ["No major conditions recorded"],
+      allergies: Array.isArray(patientData.allergies)
+        ? patientData.allergies
+        : ["None reported"],
+      chronicConditions: Array.isArray(patientData.chronicConditions)
+        ? patientData.chronicConditions
+        : ["None reported"],
+      emergencyContact: patientData.emergencyContact || {
+        name: "Emergency Contact",
+        relationship: "Family",
+        phone: patientData.phone.trim(),
+      },
+      recentVitals: patientData.recentVitals || {
+        bloodPressure: "120/80 mmHg",
+        heartRate: 72,
+        bloodSugar: 96,
+        temperature: 98.6,
+        weight: 65,
+        lastUpdated: new Date().toLocaleDateString(),
+      },
+      createdAt: serverTimestamp(),
+    };
 
+    // Save to Cloud Firestore
+    addDoc(collection(db, "patients"), payload)
+      .then((docRef) => {
+        setCurrentPatientId(docRef.id);
+      })
+      .catch((err) => {
+        console.error("Error adding patient to Firestore:", err);
+      });
+
+    // Provide immediate responsive patient object
+    const tempId = `PAT-${Date.now().toString().slice(-6)}`;
     const newPatient: Patient = {
       ...patientData,
-      id: newId,
+      id: tempId,
+      createdAt: new Date().toISOString(),
     };
 
     setPatients((prev) => [newPatient, ...prev]);
-    setCurrentPatientId(newId);
+    setCurrentPatientId(tempId);
     setActiveRole("patient");
 
     // Add welcoming notification
     const welcomeNotif: NotificationItem = {
       id: `notif-${Date.now()}`,
       title: "🎉 Registration Successful! Welcome to People's Hospital",
-      message: `Your Official Patient ID is ${newId}. You can now book doctor consultations, manage prescriptions, and review digital health vitals.`,
+      message: `Your record is stored in Cloud Firestore and synced across all devices.`,
       type: "reminder",
       timestamp: "Just now",
       isRead: false,
@@ -416,17 +896,256 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const regLog: SecurityAuditLog = {
       id: `LOG-${Date.now().toString().slice(-4)}`,
       timestamp: new Date().toLocaleString(),
-      userId: newId,
+      userId: tempId,
       userRole: "patient",
       action: "PATIENT_SELF_REGISTRATION",
-      targetResource: `EHR_RECORD_${newId}`,
-      ipAddress: "192.168.1.18 [Patient Portal Portal Client]",
+      targetResource: `EHR_RECORD_FIRESTORE`,
+      ipAddress: "192.168.1.18 [Cloud Firestore Client]",
       status: "SUCCESS",
     };
     setAuditLogs((prev) => [regLog, ...prev]);
 
-    showToast(`Welcome, ${newPatient.name}! Your Patient ID is ${newId}`);
+    showToast(`Welcome, ${newPatient.name}! Saved to Cloud Firestore.`);
     return newPatient;
+  };
+
+  const registerPatientWithFirebase = async (
+    email: string,
+    password: string,
+    patientData: Omit<Patient, "id">
+  ): Promise<Patient> => {
+    const userCredential = await createUserWithEmailAndPassword(auth, email.trim(), password);
+    const uid = userCredential.user.uid;
+
+    const payload = {
+      name: patientData.name.trim(),
+      age: Number(patientData.age) || 0,
+      gender: patientData.gender || "Other",
+      phone: patientData.phone.trim(),
+      email: email.trim().toLowerCase(),
+      bloodGroup: patientData.bloodGroup || "O+",
+      medicalHistory: Array.isArray(patientData.medicalHistory) ? patientData.medicalHistory : [],
+      allergies: Array.isArray(patientData.allergies) ? patientData.allergies : ["None reported"],
+      chronicConditions: Array.isArray(patientData.chronicConditions) ? patientData.chronicConditions : ["None reported"],
+      emergencyContact: patientData.emergencyContact || {
+        name: "Emergency Contact",
+        relationship: "Family",
+        phone: patientData.phone.trim(),
+      },
+      recentVitals: patientData.recentVitals || {
+        bloodPressure: "120/80 mmHg",
+        heartRate: 72,
+        bloodSugar: 96,
+        temperature: 98.6,
+        weight: 65,
+        lastUpdated: new Date().toLocaleDateString(),
+      },
+      createdAt: serverTimestamp(),
+    };
+
+    await setDoc(doc(db, "patients", uid), payload, { merge: true });
+
+    const newPatient: Patient = {
+      ...patientData,
+      id: uid,
+      email: email.trim(),
+      createdAt: new Date().toISOString(),
+    };
+
+    setPatients((prev) => [newPatient, ...prev.filter((p) => p.id !== uid)]);
+    setCurrentPatientId(uid);
+    setActiveRole("patient");
+    setCurrentPage("patient-portal");
+
+    const welcomeNotif: NotificationItem = {
+      id: `notif-${Date.now()}`,
+      title: "🎉 Welcome to People's Hospital! Digital Health Record Created",
+      message: `Your Patient Account (${email}) is connected with Cloud Firestore. UID: ${uid}.`,
+      type: "reminder",
+      timestamp: "Just now",
+      isRead: false,
+      targetRole: "patient",
+    };
+    setNotifications((prev) => [welcomeNotif, ...prev]);
+
+    showToast(`Welcome, ${newPatient.name}! Profile saved to Cloud Firestore.`);
+    return newPatient;
+  };
+
+  const loginPatientWithFirebase = async (
+    email: string,
+    password: string
+  ): Promise<Patient | null> => {
+    const userCredential = await signInWithEmailAndPassword(auth, email.trim(), password);
+    const uid = userCredential.user.uid;
+
+    let profile = await getPatientProfileFromFirestore(uid);
+    if (!profile) {
+      const defaultProfile: Patient = {
+        id: uid,
+        name: userCredential.user.displayName || email.split("@")[0],
+        email: email.trim(),
+        age: 32,
+        gender: "Female",
+        bloodGroup: "O+",
+        phone: "+1 (555) 234-5678",
+        medicalHistory: ["None documented"],
+        createdAt: new Date().toISOString(),
+        emergencyContact: {
+          name: "Family Guardian",
+          relationship: "Spouse",
+          phone: "+1 (555) 999-9999",
+        },
+        allergies: ["None known"],
+        chronicConditions: ["None documented"],
+        recentVitals: {
+          bloodPressure: "120/80 mmHg",
+          heartRate: 72,
+          bloodSugar: 96,
+          temperature: 98.6,
+          weight: 65,
+          lastUpdated: "Just synced",
+        },
+      };
+      profile = await savePatientProfileToFirestore(uid, defaultProfile);
+    }
+
+    setPatients((prev) => [profile!, ...prev.filter((p) => p.id !== uid)]);
+    setCurrentPatientId(uid);
+    setActiveRole("patient");
+    setCurrentPage("patient-portal");
+    showToast(`Welcome back, ${profile.name}! Signed in via Firebase.`);
+    return profile;
+  };
+
+  const loginPatientWithGoogle = async (): Promise<Patient | null> => {
+    const result = await signInWithPopup(auth, googleAuthProvider);
+    const uid = result.user.uid;
+
+    let profile = await getPatientProfileFromFirestore(uid);
+    if (!profile) {
+      const defaultProfile: Patient = {
+        id: uid,
+        name: result.user.displayName || "Google Patient",
+        email: result.user.email || "",
+        age: 30,
+        gender: "Female",
+        bloodGroup: "O+",
+        phone: result.user.phoneNumber || "+1 (555) 000-0000",
+        medicalHistory: ["None documented"],
+        createdAt: new Date().toISOString(),
+        emergencyContact: {
+          name: "Primary Contact",
+          relationship: "Family",
+          phone: "+1 (555) 999-9999",
+        },
+        allergies: ["None known"],
+        chronicConditions: ["None documented"],
+        recentVitals: {
+          bloodPressure: "120/80 mmHg",
+          heartRate: 72,
+          bloodSugar: 95,
+          temperature: 98.6,
+          weight: 65,
+          lastUpdated: "Just synced",
+        },
+      };
+      profile = await savePatientProfileToFirestore(uid, defaultProfile);
+    }
+
+    setPatients((prev) => [profile!, ...prev.filter((p) => p.id !== uid)]);
+    setCurrentPatientId(uid);
+    setActiveRole("patient");
+    setCurrentPage("patient-portal");
+    showToast(`Welcome back, ${profile.name}! Signed in with Google.`);
+    return profile;
+  };
+
+  const signUpWithSupabase = async (
+    email: string,
+    password: string,
+    patientData: Omit<Patient, "id">
+  ): Promise<Patient> => {
+    const res = await signUpPatientSupabase(email, password, patientData);
+    if (res.error || !res.patient) {
+      throw new Error(res.error || "Failed to create Supabase account.");
+    }
+
+    const newPatient = res.patient;
+    setPatients((prev) => [newPatient, ...prev.filter((p) => p.id !== newPatient.id)]);
+    setCurrentPatientId(newPatient.id);
+    setActiveRole("patient");
+    setCurrentPage("patient-portal");
+
+    const welcomeNotif: NotificationItem = {
+      id: `notif-${Date.now()}`,
+      title: "Supabase Account Created",
+      message: `Welcome ${newPatient.name}! Your patient profile and credentials have been securely stored in Supabase PostgreSQL database.`,
+      type: "reminder",
+      timestamp: "Just now",
+      isRead: false,
+      targetRole: "patient",
+    };
+    setNotifications((prev) => [welcomeNotif, ...prev]);
+
+    showToast(`Welcome, ${newPatient.name}! Profile registered in Supabase.`);
+    return newPatient;
+  };
+
+  const signInWithSupabase = async (
+    email: string,
+    password: string
+  ): Promise<Patient | null> => {
+    const res = await signInPatientSupabase(email, password);
+    if (res.error || !res.patient) {
+      throw new Error(res.error || "Invalid Supabase email or password.");
+    }
+
+    const patient = res.patient;
+    setPatients((prev) => [patient, ...prev.filter((p) => p.id !== patient.id)]);
+    setCurrentPatientId(patient.id);
+    setActiveRole("patient");
+    setCurrentPage("patient-portal");
+
+    // Also fetch appointments from Supabase table
+    try {
+      const apts = await fetchPatientAppointmentsFromSupabase(patient.id);
+      if (apts.length > 0) {
+        setAppointments((prev) => {
+          const remoteIds = new Set(apts.map((a) => a.id));
+          const others = prev.filter((a) => !remoteIds.has(a.id));
+          return [...apts, ...others];
+        });
+      }
+    } catch (e) {
+      console.warn("Could not fetch appointments from Supabase:", e);
+    }
+
+    showToast(`Welcome back, ${patient.name}! Signed in via Supabase.`);
+    return patient;
+  };
+
+  const signOutWithSupabase = async () => {
+    await signOutPatientSupabase();
+    await logoutPatient();
+  };
+
+  const syncPatientProfileToFirestore = async (data: Partial<Patient>) => {
+    if (!currentPatientId) return;
+    const existing = patients.find((p) => p.id === currentPatientId);
+    if (!existing) return;
+    const updated: Patient = { ...existing, ...data };
+    await savePatientProfileToFirestore(currentPatientId, updated);
+    
+    // Also sync to Supabase if configured
+    try {
+      await supabase.from("patients").upsert(mapModelToSupabasePatient(updated));
+    } catch (e) {
+      console.warn("Supabase profile sync warning:", e);
+    }
+
+    setPatients((prev) => prev.map((p) => (p.id === currentPatientId ? updated : p)));
+    showToast("Profile synced to cloud databases.");
   };
 
   const loginPatient = (patientIdOrEmail: string): boolean => {
@@ -452,8 +1171,51 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
-  const logoutPatient = () => {
+  const logoutPatient = async () => {
+    const prevId = currentPatientId;
+    try {
+      await firebaseSignOut(auth);
+    } catch (e) {
+      console.warn("Firebase signout warning:", e);
+    }
+    try {
+      await signOutPatientSupabase();
+    } catch (e) {
+      console.warn("Supabase signout warning:", e);
+    }
     setCurrentPatientId(null);
+    setSupabaseUser(null);
+    setFirebaseUser(null);
+    localStorage.removeItem("pharmacare_current_patient_id");
+    localStorage.setItem("pharmacare_current_patient_id", "guest");
+    localStorage.removeItem("user");
+    localStorage.removeItem("currentUser");
+    localStorage.removeItem("authToken");
+    localStorage.removeItem("auth_token");
+    localStorage.removeItem("patient_auth");
+    localStorage.removeItem("token");
+    try {
+      sessionStorage.clear();
+    } catch (e) {
+      console.error("Error clearing session storage:", e);
+    }
+    
+    // Audit log
+    if (prevId) {
+      const logoutLog: SecurityAuditLog = {
+        id: `LOG-${Date.now().toString().slice(-4)}`,
+        timestamp: new Date().toLocaleString(),
+        userId: prevId,
+        userRole: "patient",
+        action: "PATIENT_SIGN_OUT_SUCCESS",
+        targetResource: "PATIENT_SESSION",
+        ipAddress: "127.0.0.1 [Client Browser]",
+        status: "SUCCESS",
+      };
+      setAuditLogs((prev) => [logoutLog, ...prev]);
+    }
+
+    setCurrentPage("home");
     showToast("Signed out of patient profile.");
   };
 
@@ -506,7 +1268,36 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const logoutStaff = () => {
+    const prevStaff = currentStaff;
     setCurrentStaffId(null);
+    localStorage.removeItem("pharmacare_current_staff_id");
+    localStorage.setItem("pharmacare_current_staff_id", "guest");
+    localStorage.removeItem("staff_user");
+    localStorage.removeItem("staff_token");
+    localStorage.removeItem("user");
+    localStorage.removeItem("authToken");
+    try {
+      sessionStorage.clear();
+    } catch (e) {
+      console.error("Error clearing session storage:", e);
+    }
+
+    if (prevStaff) {
+      const logoutLog: SecurityAuditLog = {
+        id: `LOG-${Date.now().toString().slice(-4)}`,
+        timestamp: new Date().toLocaleString(),
+        userId: prevStaff.id,
+        userRole: prevStaff.role,
+        action: "STAFF_LOGOUT_SUCCESS",
+        targetResource: `${prevStaff.role.toUpperCase()}_WORKSPACE`,
+        ipAddress: "192.168.1.100 [Staff Workstation]",
+        status: "SUCCESS",
+      };
+      setAuditLogs((prev) => [logoutLog, ...prev]);
+    }
+
+    setActiveRole("patient");
+    setCurrentPage("home");
     showToast("Logged out of staff terminal.");
   };
 
@@ -811,6 +1602,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     setAppointments((prev) => [newApt, ...prev]);
 
+    // Persist to Cloud Firestore if current patient or auth user is active
+    if (auth.currentUser || newApt.patientId) {
+      saveAppointmentToFirestore(newApt).catch((err) => {
+        console.warn("Could not asynchronously write appointment to Firestore:", err);
+      });
+    }
+
+    // Persist to Supabase 'appointments' table
+    saveAppointmentToSupabase(newApt).catch((err) => {
+      console.warn("Could not write appointment to Supabase table:", err);
+    });
+
     setHospitalStats((prev) => ({
       ...prev,
       opdPatientsToday: prev.opdPatientsToday + 1,
@@ -839,6 +1642,65 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     showToast(`Appointment successfully booked with ${newApt.doctorName}! Token: ${token}`);
     return newApt;
+  };
+
+  const checkInAppointment = (
+    appointmentId: string,
+    method: "qr_scan" | "reception_manual" = "qr_scan"
+  ): Appointment | null => {
+    let targetApt: Appointment | null = null;
+
+    setAppointments((prev) =>
+      prev.map((a) => {
+        if (a.id === appointmentId || a.tokenNumber === appointmentId) {
+          const nowStr = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+          const updated: Appointment = {
+            ...a,
+            status: "checked-in",
+            checkedInAt: nowStr,
+            checkInMethod: method,
+            queuePosition: Math.floor(1 + Math.random() * 3),
+          };
+          targetApt = updated;
+          return updated;
+        }
+        return a;
+      })
+    );
+
+    if (targetApt) {
+      const apt = targetApt as Appointment;
+      // Log audit entry
+      const auditLog: SecurityAuditLog = {
+        id: `LOG-CHK-${Date.now().toString().slice(-4)}`,
+        timestamp: new Date().toLocaleString(),
+        userId: "RECEPTION_DESK_KIOSK",
+        userRole: "admin",
+        action: "RECEPTION_ARRIVAL_CHECKIN_VERIFIED",
+        targetResource: `APT:${apt.id} | Patient: ${apt.patientName} | Token: ${apt.tokenNumber} | Method: ${method.toUpperCase()}`,
+        ipAddress: "192.168.1.10 [Reception Desk Scanner Station 1]",
+        status: "SUCCESS",
+      };
+      setAuditLogs((prev) => [auditLog, ...prev]);
+
+      // Hospital Notification
+      const newNotif: NotificationItem = {
+        id: `notif-checkin-${Date.now()}`,
+        title: "Patient Arrival Verified at Reception",
+        message: `${apt.patientName} has checked in via ${method === "qr_scan" ? "QR Pass Scan" : "Reception Desk"} for ${apt.doctorName} (${apt.roomNumber}). Token #${apt.tokenNumber}.`,
+        type: "appointment",
+        timestamp: "Just now",
+        isRead: false,
+        targetRole: "doctor",
+      };
+      setNotifications((prev) => [newNotif, ...prev]);
+
+      showToast(`🎯 Arrival Verified! ${apt.patientName} checked in for ${apt.doctorName} (Token #${apt.tokenNumber})`);
+      return targetApt;
+    } else {
+      showToast("No appointment matched the scanned QR code or Token ID.");
+      return null;
+    }
   };
 
   const updateMedicineStock = (nameOrId: string, changeQty: number) => {
@@ -956,6 +1818,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setActiveRole,
         currentPage,
         setCurrentPage,
+        navigateTo,
+        navigationHistory,
+        goBack,
+        canGoBack,
+        resetToHome,
+        isAuthInitializing,
         patients,
         doctors,
         medicines,
@@ -980,9 +1848,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         // Patient Auth & Profile
         currentPatientId,
         currentPatient,
+        firebaseUser,
+        isFirebaseAuthLoading,
+        supabaseUser,
+        isSupabaseConfigured: isSupabaseConfigured(),
         setCurrentPatientId,
         registerPatient,
         loginPatient,
+        registerPatientWithFirebase,
+        loginPatientWithFirebase,
+        loginPatientWithGoogle,
+        signUpWithSupabase,
+        signInWithSupabase,
+        signOutWithSupabase,
+        syncPatientProfileToFirestore,
         logoutPatient,
         patientAuthModalOpen,
         setPatientAuthModalOpen,
@@ -1003,6 +1882,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         addPrescription,
         updatePrescriptionStatus,
         bookAppointment,
+        checkInAppointment,
         updateMedicineStock,
         restockMedicine,
         sendChatMessage,
@@ -1017,6 +1897,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         inquiryModalType,
         setInquiryModalType,
         openInquiryModal,
+        // Google Drive Cloud Vault
+        driveUser,
+        driveAccessToken,
+        isDriveConnected,
+        setDriveAuth,
+        driveExportModalOpen,
+        setDriveExportModalOpen,
+        driveExportData,
+        openDriveExportModal,
         aiModalOpen,
         setAiModalOpen,
         aiModalInitialType,

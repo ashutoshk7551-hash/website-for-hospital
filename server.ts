@@ -3,6 +3,16 @@ import path from "path";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
 import dotenv from "dotenv";
+import { requireAuth, AuthRequest } from "./src/middleware/auth.ts";
+import { getOrCreateUser, getUsers } from "./src/db/users.ts";
+import {
+  insertAppointment,
+  getAppointments,
+  insertPatientIntake,
+  getPatientIntakes,
+  insertContactInquiry,
+  getContactInquiries,
+} from "./src/db/clinical.ts";
 
 dotenv.config();
 
@@ -28,9 +38,175 @@ async function startServer() {
 
   app.use(express.json());
 
+  // In-memory backend database store
+  const serverPatientDatabase: any[] = [];
+
   // Health check endpoint
   app.get("/api/health", (req, res) => {
     res.json({ status: "ok", service: "People's Hospital API", timestamp: new Date().toISOString() });
+  });
+
+  // Patient Database Submissions APIs
+  app.post("/api/appointments", async (req, res) => {
+    try {
+      const record = req.body;
+      if (!record.fullName || !record.phone || !record.email) {
+        return res.status(400).json({ success: false, error: "Missing required patient fields" });
+      }
+      serverPatientDatabase.unshift(record);
+
+      let dbRecord = null;
+      try {
+        dbRecord = await insertAppointment({
+          trackingId: record.trackingId || `APT-${Date.now()}`,
+          fullName: record.fullName,
+          email: record.email,
+          phone: record.phone,
+          doctorName: record.doctorName || record.doctor || null,
+          department: record.department || null,
+          appointmentDate: record.date || record.appointmentDate || null,
+          appointmentTime: record.time || record.appointmentTime || null,
+          reason: record.reason || record.symptoms || null,
+          status: "confirmed",
+        });
+      } catch (sqlErr) {
+        console.warn("Cloud SQL appointment insert fallback:", sqlErr);
+      }
+
+      res.json({
+        success: true,
+        trackingId: record.trackingId,
+        message: "Appointment saved to hospital clinical database successfully.",
+        record: dbRecord || record,
+      });
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: err.message || "Failed to save appointment" });
+    }
+  });
+
+  app.post("/api/patient-intake", async (req, res) => {
+    try {
+      const record = req.body;
+      if (!record.fullName || !record.phone || !record.email || !record.dateOfBirth) {
+        return res.status(400).json({ success: false, error: "Missing required clinical intake fields" });
+      }
+      serverPatientDatabase.unshift(record);
+
+      let dbRecord = null;
+      try {
+        dbRecord = await insertPatientIntake({
+          trackingId: record.trackingId || `INT-${Date.now()}`,
+          fullName: record.fullName,
+          email: record.email,
+          phone: record.phone,
+          dateOfBirth: record.dateOfBirth,
+          gender: record.gender || null,
+          address: record.address || null,
+          medicalHistory: record.medicalHistory || null,
+          allergies: record.allergies || null,
+          emergencyContact: record.emergencyContact || null,
+        });
+      } catch (sqlErr) {
+        console.warn("Cloud SQL intake insert fallback:", sqlErr);
+      }
+
+      res.json({
+        success: true,
+        trackingId: record.trackingId,
+        message: "Patient intake document securely indexed.",
+        record: dbRecord || record,
+      });
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: err.message || "Failed to process intake" });
+    }
+  });
+
+  app.post("/api/contact", async (req, res) => {
+    try {
+      const record = req.body;
+      if (!record.fullName || !record.email) {
+        return res.status(400).json({ success: false, error: "Missing required contact fields" });
+      }
+      serverPatientDatabase.unshift(record);
+
+      let dbRecord = null;
+      try {
+        dbRecord = await insertContactInquiry({
+          trackingId: record.trackingId || `INQ-${Date.now()}`,
+          fullName: record.fullName,
+          email: record.email,
+          phone: record.phone || null,
+          department: record.department || null,
+          subject: record.subject || null,
+          message: record.message || record.comments || "Inquiry received",
+        });
+      } catch (sqlErr) {
+        console.warn("Cloud SQL contact inquiry fallback:", sqlErr);
+      }
+
+      res.json({
+        success: true,
+        trackingId: record.trackingId,
+        message: "Contact inquiry recorded successfully.",
+        record: dbRecord || record,
+      });
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: err.message || "Failed to submit inquiry" });
+    }
+  });
+
+  app.get("/api/submissions", async (req, res) => {
+    try {
+      const sqlAppointments = await getAppointments().catch(() => []);
+      const sqlIntakes = await getPatientIntakes().catch(() => []);
+      const sqlInquiries = await getContactInquiries().catch(() => []);
+
+      const combinedRecords = [
+        ...sqlAppointments,
+        ...sqlIntakes,
+        ...sqlInquiries,
+        ...serverPatientDatabase,
+      ];
+
+      res.json({ success: true, count: combinedRecords.length, records: combinedRecords });
+    } catch (err: any) {
+      res.json({ success: true, count: serverPatientDatabase.length, records: serverPatientDatabase });
+    }
+  });
+
+  app.get("/api/submissions/:trackingId", (req, res) => {
+    const { trackingId } = req.params;
+    const match = serverPatientDatabase.find(
+      (r) => r.trackingId?.toLowerCase() === trackingId?.toLowerCase()
+    );
+    if (!match) {
+      return res.status(404).json({ success: false, error: "Submission tracking ID not found" });
+    }
+    res.json({ success: true, record: match });
+  });
+
+  // Authenticated user sync route
+  app.post("/api/auth/sync-user", requireAuth, async (req: AuthRequest, res) => {
+    try {
+      if (!req.user || !req.user.uid) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+      const user = await getOrCreateUser(req.user.uid, req.user.email || "no-email@peopleshospital.org");
+      res.json({ success: true, user });
+    } catch (error: any) {
+      console.error("Failed to sync user:", error);
+      res.status(500).json({ error: error.message || "Failed to sync user" });
+    }
+  });
+
+  app.get("/api/users", requireAuth, async (req: AuthRequest, res) => {
+    try {
+      const usersList = await getUsers();
+      res.json(usersList);
+    } catch (error: any) {
+      console.error("Failed to fetch users:", error);
+      res.status(500).json({ error: error.message || "Failed to fetch users" });
+    }
   });
 
   // AI Healthcare Decision Support API

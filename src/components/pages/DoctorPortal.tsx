@@ -18,6 +18,7 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { PrescribedMedicine } from "../../types";
+import { BackButton } from "../common/BackButton";
 
 export const DoctorPortal: React.FC = () => {
   const {
@@ -108,7 +109,12 @@ export const DoctorPortal: React.FC = () => {
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8 animate-fade-in">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-6 animate-fade-in">
+      {/* Top Back Navigation */}
+      <div className="flex items-center justify-between">
+        <BackButton label="Back to Previous Screen" fallbackPage="home" showHomeButton={true} />
+      </div>
+
       {/* Doctor Header Banner */}
       <div className="bg-gradient-to-r from-teal-800 via-slate-900 to-blue-900 text-white rounded-3xl p-6 sm:p-8 shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div className="flex items-center gap-4">
@@ -200,9 +206,9 @@ export const DoctorPortal: React.FC = () => {
                         <span className="text-[10px] text-slate-500">({pat.age}y, {pat.gender})</span>
                       </div>
                       <div className="text-[11px] text-slate-500">
-                        Blood: <span className="font-semibold text-slate-700">{pat.bloodGroup}</span> • BP: {pat.recentVitals.bloodPressure}
+                        Blood: <span className="font-semibold text-slate-700">{pat.bloodGroup}</span> • BP: {pat.recentVitals?.bloodPressure || "120/80 mmHg"}
                       </div>
-                      {pat.allergies.length > 0 && (
+                      {(pat.allergies || []).length > 0 && (
                         <div className="text-[10px] text-red-600 font-medium">
                           ⚠️ Allergy: {pat.allergies.join(", ")}
                         </div>
@@ -219,14 +225,14 @@ export const DoctorPortal: React.FC = () => {
           <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs space-y-3">
             <h4 className="text-xs font-bold uppercase tracking-wider text-slate-800 flex items-center gap-2">
               <Activity className="w-4 h-4 text-blue-600" />
-              Patient Medical History: {selectedPatient.name}
+              Patient Medical History: {selectedPatient?.name || "Patient"}
             </h4>
 
             <div className="space-y-2 text-xs text-slate-700">
               <div className="p-2.5 bg-slate-50 rounded-xl">
                 <span className="font-semibold text-slate-900">Chronic Conditions:</span>
                 <ul className="list-disc list-inside text-slate-600 mt-1 text-[11px]">
-                  {selectedPatient.chronicConditions.map((c, i) => (
+                  {(selectedPatient?.chronicConditions || []).map((c, i) => (
                     <li key={i}>{c}</li>
                   ))}
                 </ul>
@@ -235,15 +241,15 @@ export const DoctorPortal: React.FC = () => {
               <div className="p-2.5 bg-red-50/70 border border-red-100 rounded-xl">
                 <span className="font-semibold text-red-900">Documented Allergies:</span>
                 <div className="text-red-700 font-medium mt-0.5 text-[11px]">
-                  {selectedPatient.allergies.join(", ") || "None documented"}
+                  {(selectedPatient?.allergies || []).join(", ") || "None documented"}
                 </div>
               </div>
 
               <div className="p-2.5 bg-slate-50 rounded-xl space-y-1 text-[11px]">
                 <div>
-                  <span className="font-semibold">Vitals:</span> Pulse {selectedPatient.recentVitals.heartRate} bpm, Blood Sugar {selectedPatient.recentVitals.bloodSugar} mg/dL, Temp {selectedPatient.recentVitals.temperature}°F
+                  <span className="font-semibold">Vitals:</span> Pulse {selectedPatient?.recentVitals?.heartRate ?? 72} bpm, Blood Sugar {selectedPatient?.recentVitals?.bloodSugar ?? 96} mg/dL, Temp {selectedPatient?.recentVitals?.temperature ?? 98.6}°F
                 </div>
-                <div className="text-slate-400">Last updated {selectedPatient.recentVitals.lastUpdated}</div>
+                <div className="text-slate-400">Last updated {selectedPatient?.recentVitals?.lastUpdated || "Recently"}</div>
               </div>
             </div>
           </div>

@@ -14,6 +14,7 @@ import {
 export const Footer: React.FC = () => {
   const {
     setCurrentPage,
+    resetToHome,
     setAiModalOpen,
     triggerEmergencyAlert,
     setHipaaModalOpen,
@@ -39,6 +40,14 @@ export const Footer: React.FC = () => {
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
+            <button
+              onClick={resetToHome}
+              className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold rounded-xl shadow-lg transition flex items-center gap-2 cursor-pointer border border-slate-700"
+              title="Return to Main Home Dashboard"
+            >
+              <Activity className="w-4 h-4 text-teal-400" />
+              <span>Back to Home</span>
+            </button>
             <button
               onClick={() => openInquiryModal("general_inquiry")}
               className="px-4 py-2.5 bg-gradient-to-r from-teal-500 to-emerald-500 hover:from-teal-400 hover:to-emerald-400 text-white text-xs font-bold rounded-xl shadow-lg transition flex items-center gap-2 cursor-pointer"
@@ -69,11 +78,16 @@ export const Footer: React.FC = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-8">
           {/* Col 1: Brand & Philosophy */}
           <div className="lg:col-span-2 space-y-4">
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-blue-500 to-teal-400 flex items-center justify-center text-white shadow-md">
+            <div
+              id="footer-brand-logo"
+              onClick={resetToHome}
+              className="flex items-center gap-3 cursor-pointer group w-fit"
+              title="Return to Main Landing Dashboard"
+            >
+              <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-blue-500 to-teal-400 flex items-center justify-center text-white shadow-md group-hover:scale-105 transition-transform">
                 <Activity className="w-5 h-5" />
               </div>
-              <span className="text-xl font-bold text-white tracking-tight">
+              <span className="text-xl font-bold text-white tracking-tight group-hover:text-teal-300 transition-colors">
                 People's<span className="text-teal-400"> Hospital</span>
               </span>
             </div>
@@ -135,6 +149,11 @@ export const Footer: React.FC = () => {
           <div className="space-y-3">
             <h4 className="text-xs font-bold text-white uppercase tracking-wider">Smart Modules</h4>
             <ul className="space-y-2 text-xs text-slate-400">
+              <li>
+                <button onClick={() => setCurrentPage("google-drive-vault")} className="hover:text-blue-300 transition text-blue-300 font-semibold flex items-center gap-1">
+                  <span>Google Drive Health Vault</span>
+                </button>
+              </li>
               <li>
                 <button onClick={() => setCurrentPage("pharmacy-mgmt")} className="hover:text-teal-300 transition">
                   Smart Pharmacy Inventory
